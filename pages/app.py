@@ -4,6 +4,7 @@ import pandas as pd
 import simplekml
 import streamlit as st
 from io import BytesIO
+import zipfile
 from datetime import datetime
 
 # ฟังก์ชันดึงค่าพิกัดจากข้อความโดยใช้ Regex
@@ -69,7 +70,19 @@ def convert_excel_to_kml(uploaded_file, sheet_name, base_folder):
             saved_files.append(kml_filename)
 
         status_text.text("✅ ประมวลผลเสร็จสิ้น!")
-        return save_folder, saved_files
+        
+        # ถ้าไม่มีการระบุโฟลเดอร์หลักให้ทำการ zip โฟลเดอร์และดาวน์โหลด
+        if not base_folder:
+            zip_filename = os.path.join(save_folder, f"KML_Output_{timestamp}.zip")
+            with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file in saved_files:
+                    zipf.write(file, os.path.basename(file))
+
+            # ให้ผู้ใช้ดาวน์โหลดไฟล์ ZIP
+            return zip_filename, saved_files
+        else:
+            return save_folder, saved_files
+
     except Exception as e:
         status_text.text("❌ เกิดข้อผิดพลาด!")
         st.error(f"เกิดข้อผิดพลาด: {e}")
@@ -99,10 +112,16 @@ if uploaded_file is not None:
             save_folder, saved_files = convert_excel_to_kml(uploaded_file, sheet_name, base_folder)
 
             if saved_files:
-                st.success(f"✅ บันทึกไฟล์ KML สำเร็จที่ `{save_folder}`")
-                
-                # 🔹 แสดงโฟลเดอร์ที่บันทึก
-                st.write(f"📂 **โฟลเดอร์ที่บันทึก:** `{save_folder}`")
+                if base_folder: 
+                    st.success(f"✅ บันทึกไฟล์ KML สำเร็จที่ `{save_folder}`")
+                    # 🔹 แสดงโฟลเดอร์ที่บันทึก
+                    st.write(f"📂 **โฟลเดอร์ที่บันทึก:** `{save_folder}`")
+                else:
+                    st.success(f"✅ บันทึกไฟล์ KML สำเร็จที่ `{save_folder}` และได้ทำการบันทึกเป็นไฟล์ ZIP")
+
+                    # 🔹 ให้ผู้ใช้ดาวน์โหลดไฟล์ ZIP
+                    with open(save_folder, "rb") as f:
+                        st.download_button("📥 ดาวน์โหลดไฟล์ ZIP", f, file_name=os.path.basename(save_folder))
 
                 # 🔹 แสดงไฟล์ที่บันทึกสำเร็จ
                 for filename in saved_files:
