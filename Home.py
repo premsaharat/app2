@@ -1,6 +1,10 @@
 import streamlit as st
 import time
 
+# Initialize session state for theme if not exists
+if 'theme' not in st.session_state:
+    st.session_state.theme = 'สว่าง'
+
 # Page config
 st.set_page_config(
     page_title="File Converter Hub",
@@ -9,15 +13,56 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Enhanced CSS with animations and better styling
+# Theme-based CSS
+def get_theme_css():
+    if st.session_state.theme == 'มืด':
+        return """
+        <style>
+        /* Dark theme */
+        .big-button {
+            background-color: #1e1e1e;
+            color: white;
+            border: 2px solid #333;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+        }
+        .stats-box {
+            background-color: #2d2d2d;
+            color: white;
+        }
+        .feature-list {
+            background-color: #2d2d2d;
+            color: white;
+        }
+        </style>
+        """
+    else:  # Light theme
+        return """
+        <style>
+        /* Light theme */
+        .big-button {
+            background-color: white;
+            color: black;
+            border: 2px solid #f0f2f6;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .stats-box {
+            background-color: #f8fafc;
+            color: black;
+        }
+        .feature-list {
+            background-color: #f8fafc;
+            color: black;
+        }
+        </style>
+        """
+
+# Base CSS
 st.markdown("""
     <style>
-    /* Main container styling */
     .main {
         padding: 2rem;
     }
     
-    /* Custom card styling */
     .stButton button {
         width: 100%;
         padding: 0.5rem;
@@ -35,19 +80,15 @@ st.markdown("""
     }
     
     .big-button {
-        background-color: white;
         border-radius: 1rem;
         padding: 1.5rem;
         margin: 0.5rem;
         text-align: center;
         transition: all 0.3s ease;
-        border: 2px solid #f0f2f6;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
     
     .big-button:hover {
         transform: translateY(-5px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
     
     .tool-icon {
@@ -56,36 +97,39 @@ st.markdown("""
     }
     
     .stats-box {
-        background-color: #f8fafc;
         border-radius: 0.5rem;
         padding: 1rem;
         margin: 0.5rem;
         text-align: center;
     }
     
-    /* Feature list styling */
     .feature-list {
-        background-color: #f8fafc;
         border-radius: 0.5rem;
         padding: 1rem;
         margin-top: 1rem;
     }
     
-    /* Progress bar styling */
     .stProgress > div > div > div {
         background-color: #2e6bf0;
     }
     </style>
-    """, unsafe_allow_html=True)
+    """ + get_theme_css(), unsafe_allow_html=True)
 
 # Sidebar with user guide and settings
 with st.sidebar:
     st.title("⚙️ การตั้งค่า")
-    theme = st.selectbox(
+    
+    # Theme selector with functionality
+    selected_theme = st.selectbox(
         "ธีม",
         ["สว่าง", "มืด", "ระบบ"],
-        index=0
+        index=["สว่าง", "มืด", "ระบบ"].index(st.session_state.theme)
     )
+    
+    # Update theme if changed
+    if selected_theme != st.session_state.theme:
+        st.session_state.theme = selected_theme
+        st.experimental_rerun()
     
     st.markdown("---")
     st.markdown("### 📖 คู่มือการใช้งาน")
@@ -110,75 +154,65 @@ with st.sidebar:
 st.title("🔄 File Converter Hub")
 st.markdown("### ศูนย์รวมเครื่องมือแปลงไฟล์ที่ใช้งานง่าย รวดเร็ว และมีประสิทธิภาพ")
 
-# Search bar
+# Search functionality
 search = st.text_input("🔍 ค้นหาเครื่องมือ...", placeholder="พิมพ์ชื่อเครื่องมือที่ต้องการ...")
 
-# Tool grid
-col1, col2, col3, col4 = st.columns(4)
+# Tools data
+tools = [
+    {
+        "icon": "📊",
+        "title": "Excel to KML",
+        "description": "แปลงไฟล์ Excel เป็น KML สำหรับแสดงข้อมูลบน Google Earth",
+        "usage_count": "1,234",
+        "page": "pages/app.py"
+    },
+    {
+        "icon": "📑",
+        "title": "KML to Excel",
+        "description": "แปลงไฟล์ KML เป็น Excel เพื่อจัดการข้อมูลได้ง่ายขึ้น",
+        "usage_count": "987",
+        "page": "pages/appss.py"
+    },
+    {
+        "icon": "〽️",
+        "title": "สร้างเส้นซ้อน",
+        "description": "สร้างและแก้ไขเส้นซ้อนบนแผนที่แบบอัตโนมัติ",
+        "usage_count": "756",
+        "page": "pages/appsss.py"
+    },
+    {
+        "icon": "✂️",
+        "title": "ตัดพื้นที่",
+        "description": "ตัดพื้นที่ตามขอบเขตที่กำหนดอย่างแม่นยำ",
+        "usage_count": "543",
+        "page": "pages/appssss.py"
+    }
+]
 
-with col1:
-    st.markdown("""
-        <div class="big-button">
-            <div class="tool-icon">📊</div>
-            <h2>Excel to KML</h2>
-            <p>แปลงไฟล์ Excel เป็น KML สำหรับแสดงข้อมูลบน Google Earth</p>
-            <div class="stats-box">
-                <small>ใช้งานแล้ว 1,234 ครั้ง</small>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("เปิดใช้งาน Excel to KML", key="btn1"):
-        with st.spinner("กำลังโหลด..."):
-            time.sleep(0.5)
-            st.switch_page("pages/app.py")
+# Filter tools based on search
+if search:
+    filtered_tools = [tool for tool in tools if search.lower() in tool['title'].lower() or search.lower() in tool['description'].lower()]
+else:
+    filtered_tools = tools
 
-with col2:
-    st.markdown("""
-        <div class="big-button">
-            <div class="tool-icon">📑</div>
-            <h2>KML to Excel</h2>
-            <p>แปลงไฟล์ KML เป็น Excel เพื่อจัดการข้อมูลได้ง่ายขึ้น</p>
-            <div class="stats-box">
-                <small>ใช้งานแล้ว 987 ครั้ง</small>
+# Display tools in grid
+cols = st.columns(4)
+for idx, tool in enumerate(filtered_tools):
+    with cols[idx % 4]:
+        st.markdown(f"""
+            <div class="big-button">
+                <div class="tool-icon">{tool['icon']}</div>
+                <h2>{tool['title']}</h2>
+                <p>{tool['description']}</p>
+                <div class="stats-box">
+                    <small>ใช้งานแล้ว {tool['usage_count']} ครั้ง</small>
+                </div>
             </div>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("เปิดใช้งาน KML to Excel", key="btn2"):
-        with st.spinner("กำลังโหลด..."):
-            time.sleep(0.5)
-            st.switch_page("pages/appss.py")
-
-with col3:
-    st.markdown("""
-        <div class="big-button">
-            <div class="tool-icon">〽️</div>
-            <h2>สร้างเส้นซ้อน</h2>
-            <p>สร้างและแก้ไขเส้นซ้อนบนแผนที่แบบอัตโนมัติ</p>
-            <div class="stats-box">
-                <small>ใช้งานแล้ว 756 ครั้ง</small>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("เปิดใช้งานสร้างเส้นซ้อน", key="btn3"):
-        with st.spinner("กำลังโหลด..."):
-            time.sleep(0.5)
-            st.switch_page("pages/appsss.py")
-
-with col4:
-    st.markdown("""
-        <div class="big-button">
-            <div class="tool-icon">✂️</div>
-            <h2>ตัดพื้นที่</h2>
-            <p>ตัดพื้นที่ตามขอบเขตที่กำหนดอย่างแม่นยำ</p>
-            <div class="stats-box">
-                <small>ใช้งานแล้ว 543 ครั้ง</small>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-    if st.button("เปิดใช้งานตัดพื้นที่", key="btn4"):
-        with st.spinner("กำลังโหลด..."):
-            time.sleep(0.5)
-            st.switch_page("pages/appssss.py")
+        """, unsafe_allow_html=True)
+        if st.button(f"เปิดใช้งาน {tool['title']}", key=f"btn{idx+1}"):
+            with st.spinner("กำลังโหลด..."):
+                time.sleep(0.5)
+                st.switch_page(tool['page'])
 
 # Feature highlights
 st.markdown("---")
