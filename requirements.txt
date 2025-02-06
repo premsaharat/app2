@@ -5,3 +5,4 @@ simplekml
 lxml
 shapely
 beautifulsoup4
+osgeo
