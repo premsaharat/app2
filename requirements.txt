@@ -1,11 +1,8 @@
 streamlit
+gdal
 pandas
 openpyxl
 simplekml
 lxml
 shapely
 beautifulsoup4
-plotly
-yfinance
-pandas-datareader
-prophet
