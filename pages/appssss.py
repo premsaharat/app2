@@ -1,99 +1,111 @@
-import tempfile
 import os
-import geopandas as gpd
+import re
+import pandas as pd
+import simplekml
 import streamlit as st
-import shutil
+from io import BytesIO
+from datetime import datetime
 
-def clip_and_combine(input_kml, boundary_geom, output_kml):
-    input_gdf = gpd.read_file(input_kml)
-    clipped_gdf = input_gdf[input_gdf.intersects(boundary_geom)]
-    clipped_gdf.to_file(output_kml, driver="KML")
-
-def process_areas(input_kml_path, boundary_kml_path, output_dir):
-    boundary_gdf = gpd.read_file(boundary_kml_path)
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-    output_files = []
-    
-    for i, boundary_feature in boundary_gdf.iterrows():
-        boundary_geom = boundary_feature.geometry
-        area_name = boundary_feature.get('name', f'area_{i}')
-        output_kml = os.path.join(output_dir, f"{area_name}.kml")
-        
-        clip_and_combine(input_kml_path, boundary_geom, output_kml)
-        output_files.append(output_kml)
-        
-        # Show progress
-        progress = (i + 1) / len(boundary_gdf)
-        st.progress(progress)
-        st.write(f"กำลังประมวลผล: {area_name}")
-    
-    return output_files
-
-st.title("โปรแกรมตัดพื้นที่จากไฟล์ KML")
-
-# File uploaders
-input_file = st.file_uploader("เลือกไฟล์พื้นที่สีแดง (area.kml)", type=['kml'])
-boundary_file = st.file_uploader("เลือกไฟล์ขอบเขต (boundary.kml)", type=['kml'])
-output_dir = st.text_input("ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์ (เว้นว่างไว้หากไม่ต้องการ)")
-
-if st.button("เริ่มประมวลผล", disabled=not (input_file and boundary_file)):
+# ฟังก์ชันดึงค่าพิกัดจากข้อความโดยใช้ Regex
+def parse_coordinates(coord_str):
     try:
-        # Create temp directory if no output dir specified
-        if not output_dir:
-            output_dir = tempfile.mkdtemp()
-            
-        # Save uploaded files to temp files
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_input:
-            tmp_input.write(input_file.getvalue())
-            input_path = tmp_input.name
+        matches = re.findall(r"[-+]?\d*\.\d+|[-+]?\d+", coord_str)
+        if len(matches) != 2:
+            raise ValueError("Invalid coordinate format")
+        lat, lon = map(float, matches)
+        return lon, lat
+    except Exception:
+        return None
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_boundary:
-            tmp_boundary.write(boundary_file.getvalue())
-            boundary_path = tmp_boundary.name
+# ฟังก์ชันแปลง Excel เป็น KML และบันทึกลงโฟลเดอร์
+def convert_excel_to_kml(uploaded_file, sheet_name, base_folder):
+    try:
+        status_text.text("📌 กำลังประมวลผล...")
 
-        # Process files
-        output_files = process_areas(input_path, boundary_path, output_dir)
-        
-        # Show download buttons
-        st.success("การประมวลผลเสร็จสิ้น!")
-        
-        if output_dir == tempfile.mkdtemp():  # Check if the output is temporary
-            # Compress the output directory into a zip file for download
-            zip_output = f"{output_dir}.zip"
-            shutil.make_archive(zip_output.replace('.zip', ''), 'zip', output_dir)
-            
-            with open(zip_output, "rb") as f:
-                st.download_button(
-                    "ดาวน์โหลดโฟลเดอร์ผลลัพธ์ (ZIP)",
-                    data=f,
-                    file_name=os.path.basename(zip_output),
-                    mime="application/zip"
-                )
-        else:
-            for i, file in enumerate(output_files):
-                with open(file, "rb") as f:
-                    st.download_button(
-                        f"ดาวน์โหลด {os.path.basename(file)}",
-                        data=f,
-                        file_name=os.path.basename(file),
-                        mime="application/vnd.google-earth.kml+xml",
-                        key=f"btn_{i}"
-                    )
-                
+        # ✅ อ่านไฟล์ Excel
+        data = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+
+        # ลบช่องว่างจากชื่อคอลัมน์
+        data.columns = data.columns.str.strip()
+
+        # แปลงค่าพิกัด
+        data['พิกัด'] = data['พิกัด'].apply(lambda x: parse_coordinates(str(x)) if pd.notna(x) else None)
+        data = data.dropna(subset=['พิกัด'])
+
+        # จัดกลุ่มข้อมูลตาม ID
+        grouped = data.groupby('id')
+
+        # ✅ สร้างโฟลเดอร์ใหม่ตามวันเวลา
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        save_folder = os.path.join(base_folder, f"KML_Output_{timestamp}")
+        os.makedirs(save_folder, exist_ok=True)
+
+        # ✅ เก็บไฟล์ที่บันทึก
+        saved_files = []
+
+        for device_id, group in grouped:
+            kml = simplekml.Kml()
+            coords = group.sort_values('ลำดับพิกัด')['พิกัด'].tolist()
+
+            # สร้างเส้น (LineString)
+            linestring = kml.newlinestring(name=f"{group['ชื่อชุมสาย'].iloc[0]} {device_id}")
+            linestring.coords = coords
+            linestring.style.linestyle.color = simplekml.Color.blue
+            linestring.style.linestyle.width = 3
+
+            # ดึงข้อมูลทั้งหมดเป็น description
+            description = "\n".join([f"{col}: {group[col].iloc[0]}" for col in data.columns if col != 'พิกัด'])
+            linestring.description = description
+
+            # เพิ่มจุด (Point) สำหรับแต่ละพิกัด
+            for _, row in group.iterrows():
+                point = kml.newpoint(name=f"จุดที่ {row['ลำดับพิกัด']}", coords=[row['พิกัด']])
+                point.description = "\n".join([f"{col}: {row[col]}" for col in data.columns if col != 'พิกัด'])
+                point.style.iconstyle.color = simplekml.Color.red
+
+            # ✅ บันทึกไฟล์ KML ลงโฟลเดอร์ที่เลือก
+            kml_filename = os.path.join(save_folder, f"{device_id}.kml")
+            kml.save(kml_filename)
+            saved_files.append(kml_filename)
+
+        status_text.text("✅ ประมวลผลเสร็จสิ้น!")
+        return save_folder, saved_files
     except Exception as e:
-        st.error(f"เกิดข้อผิดพลาด: {str(e)}")
-        
-    finally:
-        # Cleanup temp files
-        if 'input_path' in locals(): os.unlink(input_path)
-        if 'boundary_path' in locals(): os.unlink(boundary_path)
+        status_text.text("❌ เกิดข้อผิดพลาด!")
+        st.error(f"เกิดข้อผิดพลาด: {e}")
+        return None, None
 
-st.markdown("""
-### คำแนะนำการใช้งาน
-1. อัปโหลดไฟล์พื้นที่สีแดง (area.kml)
-2. อัปโหลดไฟล์ขอบเขต (boundary.kml)
-3. ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์ (หรือเว้นว่างไว้)
-4. กดปุ่ม "เริ่มประมวลผล"
-""")
+# ✅ แสดง UI ของเว็บแอป
+st.set_page_config(page_title="Excel to KML Converter", layout="centered")
+st.title("📍 Excel to KML Converter")
+
+# 🔹 **เพิ่มตัวเลือกไฟล์อัปโหลด**
+uploaded_file = st.file_uploader("📂 **เลือกไฟล์ Excel**", type=["xlsx", "xls"])
+
+# 🔹 **เพิ่มช่องให้ใส่โฟลเดอร์หลัก**
+base_folder = st.text_input("📁 **ระบุโฟลเดอร์หลักสำหรับเก็บไฟล์ KML**", value=os.getcwd())
+
+# 🔹 ตรวจสอบว่ามีไฟล์หรือไม่
+if uploaded_file is not None:
+    try:
+        # ✅ อ่าน Excel และดึงชื่อ Sheet
+        excel_data = pd.ExcelFile(uploaded_file)
+        sheet_names = excel_data.sheet_names
+        sheet_name = st.selectbox("📄 **เลือก Sheet**", sheet_names)
+
+        # 🔹 ปุ่มเริ่มแปลงไฟล์
+        status_text = st.empty()
+        if st.button("🚀 เริ่มแปลงเป็น KML"):
+            save_folder, saved_files = convert_excel_to_kml(uploaded_file, sheet_name, base_folder)
+
+            if saved_files:
+                st.success(f"✅ บันทึกไฟล์ KML สำเร็จที่ `{save_folder}`")
+                
+                # 🔹 แสดงโฟลเดอร์ที่บันทึก
+                st.write(f"📂 **โฟลเดอร์ที่บันทึก:** `{save_folder}`")
+
+                # 🔹 แสดงไฟล์ที่บันทึกสำเร็จ
+                for filename in saved_files:
+                    st.write(f"📌 `{filename}`")
+    except Exception as e:
+        st.error(f"❌ ไม่สามารถโหลดไฟล์: {e}")
