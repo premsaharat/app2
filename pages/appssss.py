@@ -2,7 +2,6 @@ import tempfile
 import os
 import geopandas as gpd
 import streamlit as st
-import shutil
 
 def clip_and_combine(input_kml, boundary_geom, output_kml):
     input_gdf = gpd.read_file(input_kml)
@@ -43,7 +42,7 @@ if st.button("เริ่มประมวลผล", disabled=not (input_file
         # Create temp directory if no output dir specified
         if not output_dir:
             output_dir = tempfile.mkdtemp()
-        
+            
         # Save uploaded files to temp files
         with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_input:
             tmp_input.write(input_file.getvalue())
@@ -56,26 +55,17 @@ if st.button("เริ่มประมวลผล", disabled=not (input_file
         # Process files
         output_files = process_areas(input_path, boundary_path, output_dir)
         
-        # Show success and prepare download buttons
+        # Show download buttons
         st.success("การประมวลผลเสร็จสิ้น!")
-        
-        # If output_dir is a temporary folder, create a sub-folder to contain all files
-        temp_download_dir = os.path.join(output_dir, 'processed_files')
-        if not os.path.exists(temp_download_dir):
-            os.makedirs(temp_download_dir)
-
-        # Move processed files to a subfolder
-        for file in output_files:
-            shutil.move(file, temp_download_dir)
-
-        # Provide a single button to download the entire folder
-        with open(temp_download_dir, "rb") as f:
-            st.download_button(
-                "ดาวน์โหลดไฟล์ทั้งหมด",
-                data=f,
-                file_name=f"processed_files.zip",  # optional: you can make a zip of this folder if desired
-                mime="application/zip",  # MIME type for zip files
-            )
+        for i, file in enumerate(output_files):
+            with open(file, "rb") as f:
+                st.download_button(
+                    f"ดาวน์โหลด {os.path.basename(file)}",
+                    data=f,
+                    file_name=os.path.basename(file),
+                    mime="application/vnd.google-earth.kml+xml",
+                    key=f"btn_{i}"
+                )
                 
     except Exception as e:
         st.error(f"เกิดข้อผิดพลาด: {str(e)}")
@@ -91,4 +81,4 @@ st.markdown("""
 2. อัปโหลดไฟล์ขอบเขต (boundary.kml)
 3. ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์ (หรือเว้นว่างไว้)
 4. กดปุ่ม "เริ่มประมวลผล"
-""")
+""") 
