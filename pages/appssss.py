@@ -16,20 +16,23 @@ def clip_and_combine(input_kml, boundary_geom, output_kml):
     st.success(f"สร้างไฟล์ใหม่สำเร็จ: {output_kml}")
 
 def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
-    # อ่านไฟล์ขอบเขต KML ด้วย geopandas
-    boundary_gdf = gpd.read_file(boundary_kml_path)
+    driver = ogr.GetDriverByName("KML")
+    boundary_ds = driver.Open(boundary_kml_path, 0)
+    if not boundary_ds:
+        st.error(f"ไม่สามารถเปิดไฟล์: {boundary_kml_path}")
+        return
     
+    boundary_layer = boundary_ds.GetLayer()
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     progress_bar = st.progress(0)
     status_text = st.empty()
-
-    total_features = len(boundary_gdf)
-    for i, boundary_feature in boundary_gdf.iterrows():
-        boundary_geom = boundary_feature['geometry']
-        area_name = boundary_feature['name']  # ตรวจสอบว่าในข้อมูลมีฟิลด์ชื่อ 'name'
-        
+    
+    total_features = boundary_layer.GetFeatureCount()
+    for i, boundary_feature in enumerate(boundary_layer):
+        boundary_geom = boundary_feature.GetGeometryRef()
+        area_name = boundary_feature.GetField("name")  # แก้ไขตรงนี้จาก ['name'] เป็น GetField("name")
         if not area_name:
             st.warning("ไม่พบชื่อเขตในข้อมูล")
             continue
@@ -46,8 +49,10 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
         progress_bar.progress(progress)
         status_text.text(f"กำลังประมวลผล: {area_name} ({i+1}/{total_features})")
 
+    boundary_ds = None
     status_text.text("การประมวลผลเสร็จสิ้น!")
     st.success("การประมวลผลเสร็จสิ้น!")
+
 
 # Streamlit UI
 def main():
