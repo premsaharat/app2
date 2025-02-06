@@ -1,0 +1,7 @@
+streamlit
+pandas
+openpyxl
+simplekml
+lxml
+shapely
+beautifulsoup4
