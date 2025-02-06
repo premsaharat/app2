@@ -142,7 +142,6 @@ st.markdown('<p class="main-title">KML to Excel Converter 🚀</p>', unsafe_allo
 st.markdown('<p class="sub-title">📄 แปลงไฟล์ KML เป็น Excel พร้อมข้อมูล Metadata</p>', unsafe_allow_html=True)
 
 uploaded_files = st.file_uploader("📂 อัปโหลดไฟล์ KML", type="kml", accept_multiple_files=True)
-output_folder = st.text_input("📁 โฟลเดอร์ปลายทาง (เว้นว่างเพื่อดาวน์โหลด)")
 
 if uploaded_files:
     if st.button('⚡ เริ่มประมวลผล'):
@@ -154,25 +153,14 @@ if uploaded_files:
                 lines = load_kml_lines(uploaded_file)
                 output_memory = save_to_excel_memory(lines)
 
-                if output_folder:  # หากมีการกำหนดโฟลเดอร์ปลายทาง
-                    if not os.path.exists(output_folder):
-                        os.makedirs(output_folder)
-                    
-                    output_path = os.path.join(output_folder, uploaded_file.name.replace(".kml", ".xlsx"))
-                    with open(output_path, "wb") as f:
-                        f.write(output_memory.read())
-                    
-                    st.success(f"✅ ไฟล์บันทึกที่ {output_path}")
-                else:
-                    # ให้ดาวน์โหลดไฟล์จาก Streamlit โดยตรง
-                    st.download_button(
-                        label=f"📥 ดาวน์โหลด {uploaded_file.name.replace('.kml', '.xlsx')}",
-                        data=output_memory,
-                        file_name=f"{uploaded_file.name.replace('.kml', '.xlsx')}",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                # ให้ดาวน์โหลดไฟล์จาก Streamlit โดยตรง
+                st.download_button(
+                    label=f"📥 ดาวน์โหลด {uploaded_file.name.replace('.kml', '.xlsx')}",
+                    data=output_memory,
+                    file_name=f"{uploaded_file.name.replace('.kml', '.xlsx')}",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
                 progress_bar.progress((i + 1) / total_files)
 
             status.update(label="✅ เสร็จสิ้น!", state="complete")
-
