@@ -9,7 +9,7 @@ def clip_and_combine(input_kml, boundary_geom, output_kml):
     clipped_gdf = input_gdf[input_gdf.intersects(boundary_geom)]
     clipped_gdf.to_file(output_kml, driver="KML")
 
-def process_areas(input_kml_path, boundary_kml_path, output_dir, input_filename):
+def process_areas(input_kml_path, boundary_kml_path, output_dir):
     boundary_gdf = gpd.read_file(boundary_kml_path)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -18,7 +18,7 @@ def process_areas(input_kml_path, boundary_kml_path, output_dir, input_filename)
     
     for i, boundary_feature in boundary_gdf.iterrows():
         boundary_geom = boundary_feature.geometry
-        area_name = boundary_feature.get('name', f'{os.path.splitext(input_filename)[0]}_area_{i}')
+        area_name = boundary_feature.get('name', f'area_{i}')
         output_kml = os.path.join(output_dir, f"{area_name}.kml")
         
         clip_and_combine(input_kml_path, boundary_geom, output_kml)
@@ -48,14 +48,13 @@ if st.button("เริ่มประมวลผล", disabled=not (input_file
         with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_input:
             tmp_input.write(input_file.getvalue())
             input_path = tmp_input.name
-            input_filename = os.path.basename(tmp_input.name)  # Get the uploaded file name
 
         with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_boundary:
             tmp_boundary.write(boundary_file.getvalue())
             boundary_path = tmp_boundary.name
 
         # Process files
-        output_files = process_areas(input_path, boundary_path, output_dir, input_filename)
+        output_files = process_areas(input_path, boundary_path, output_dir)
         
         # Show download buttons
         st.success("การประมวลผลเสร็จสิ้น!")
