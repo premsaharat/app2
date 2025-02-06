@@ -1,6 +1,5 @@
 import os
 import streamlit as st
-from osgeo import ogr
 import tempfile
 import zipfile
 from lxml import etree
@@ -40,49 +39,59 @@ def clip_and_combine(input_kml, boundary_geom, output_kml):
 
 # ฟังก์ชันสำหรับประมวลผลทุกเขต
 def process_areas_with_red(input_kml, boundary_kml):
-    driver = ogr.GetDriverByName("KML")
-    boundary_ds = driver.Open(boundary_kml, 0)
-    if not boundary_ds:
-        st.error(f"ไม่สามารถเปิดไฟล์: {boundary_kml}")
-        return None
-    
-    boundary_layer = boundary_ds.GetLayer()
     output_files = []  # สร้างรายการสำหรับไฟล์ KML ที่ได้
 
-    for boundary_feature in boundary_layer:
-        boundary_geom = boundary_feature.GetGeometryRef()
-        area_name = boundary_feature.GetField("name")
-        if not area_name:
-            st.warning("ไม่พบชื่อเขตในข้อมูล")
-            continue
+    # อ่านไฟล์ KML ของขอบเขต
+    try:
+        boundary_tree = etree.parse(boundary_kml)
+        boundary_root = boundary_tree.getroot()
 
-        output_kml = f"{area_name}.kml"
-        output_kml = clip_and_combine(input_kml, boundary_geom, output_kml)
-        if output_kml:
-            output_files.append(output_kml)  # เพิ่มไฟล์ KML ลงในรายการ
+        for boundary_placemark in boundary_root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
+            boundary_geom = boundary_placemark.find(".//{http://www.opengis.net/kml/2.2}coordinates")
+            if boundary_geom is not None:
+                coords = boundary_geom.text.strip().split()
+                boundary_points = [(float(coord.split(',')[0]), float(coord.split(',')[1])) for coord in coords]
 
-    boundary_ds = None
+                area_name = boundary_placemark.find(".//{http://www.opengis.net/kml/2.2}name")
+                if area_name is not None:
+                    area_name = area_name.text
+                else:
+                    area_name = "unknown"
+
+                output_kml = f"{area_name}.kml"
+                output_kml = clip_and_combine(input_kml, {"lon_min": min([p[0] for p in boundary_points]),
+                                                          "lon_max": max([p[0] for p in boundary_points]),
+                                                          "lat_min": min([p[1] for p in boundary_points]),
+                                                          "lat_max": max([p[1] for p in boundary_points])}, output_kml)
+                if output_kml:
+                    output_files.append(output_kml)  # เพิ่มไฟล์ KML ลงในรายการ
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการประมวลผลไฟล์ขอบเขต: {e}")
+
     return output_files  # ส่งคืนรายการไฟล์ที่สร้างขึ้น
 
 # ฟังก์ชันสำหรับการรวมไฟล์ KML
 def combine_kml_files(output_files):
-    driver = ogr.GetDriverByName("KML")
     combined_output_kml = tempfile.NamedTemporaryFile(delete=False, suffix='.kml')
 
-    # สร้างไฟล์ KML ใหม่สำหรับรวมข้อมูลทั้งหมด
-    output_ds = driver.CreateDataSource(combined_output_kml.name)
-    output_layer = output_ds.CreateLayer("combined", geom_type=ogr.wkbPolygon)
+    # อ่านไฟล์ KML ของแต่ละไฟล์แล้วรวม
+    combined_tree = etree.ElementTree(etree.Element("kml"))
+    combined_root = combined_tree.getroot()
+    combined_root.set("xmlns", "http://www.opengis.net/kml/2.2")
+    document_elem = etree.SubElement(combined_root, "Document")
 
     for file in output_files:
-        input_ds = driver.Open(file, 0)
-        input_layer = input_ds.GetLayer()
+        try:
+            tree = etree.parse(file)
+            root = tree.getroot()
+            for placemark in root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
+                document_elem.append(placemark)
+        except Exception as e:
+            st.error(f"ไม่สามารถรวมไฟล์ {file}: {e}")
 
-        for feature in input_layer:
-            output_layer.CreateFeature(feature)
+    # บันทึกไฟล์ KML ที่รวม
+    combined_tree.write(combined_output_kml.name)
 
-        input_ds = None
-
-    output_ds = None
     return combined_output_kml.name  # ส่งคืนชื่อไฟล์ KML ที่รวมแล้ว
 
 # ฟังก์ชันสำหรับดาวน์โหลดไฟล์ทั้งหมดในรูปแบบ ZIP
@@ -182,7 +191,7 @@ def main():
         1. อัปโหลดไฟล์เส้นพื้นที่ที่ต้องการตรวจสอบ ( * ไฟล์ kml เท่านั้น *) 
         2. อัปโหลดไฟล์ขอบเขต ( * ไฟล์ kml เท่านั้น * )
         3. กดปุ่ม "เริ่มประมวลผลแยกไฟล์ KML" เพื่อดาวน์โหลดไฟล์แยกทั้งหมดในรูปแบบ ZIP
-        4. กดปุ่ม "เริ่มประมวลผลรวมไฟล์ KML" เพื่อดาวน์โหลดไฟล์ KML ที่รวมทุกเขต
+         4. กดปุ่ม "เริ่มประมวลผลรวมไฟล์ KML" เพื่อดาวน์โหลดไฟล์ KML ที่รวมทุกเขต
         """)
 
 if __name__ == "__main__":
