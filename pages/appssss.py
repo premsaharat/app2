@@ -1,95 +1,182 @@
 import os
-import shutil
-import tempfile
 import streamlit as st
-import geopandas as gpd
+from osgeo import ogr
+import tempfile
+import zipfile
 
+# ฟังก์ชันสำหรับตัดพื้นที่สีแดง
 def clip_and_combine(input_kml, boundary_geom, output_kml):
-    # อ่านไฟล์ KML ด้วย geopandas
-    input_gdf = gpd.read_file(input_kml)
-    if input_gdf.empty:
+    driver = ogr.GetDriverByName("KML")
+    input_ds = driver.Open(input_kml, 0)
+    if not input_ds:
         st.error(f"ไม่สามารถเปิดไฟล์: {input_kml}")
-        return
+        return None
     
-    # ตรวจสอบว่า geodataframe มีข้อมูลและตัดพื้นที่
-    clipped_gdf = input_gdf[input_gdf.geometry.intersects(boundary_geom)]
-    clipped_gdf['geometry'] = clipped_gdf.geometry.intersection(boundary_geom)
+    input_layer = input_ds.GetLayer()
+    output_ds = driver.CreateDataSource(output_kml)
+    output_layer = output_ds.CreateLayer("clipped", geom_type=ogr.wkbPolygon)
 
-    # เขียนผลลัพธ์ลงไฟล์ KML
-    clipped_gdf.to_file(output_kml, driver='KML')
-    st.success(f"สร้างไฟล์ใหม่สำเร็จ: {output_kml}")
+    for feature in input_layer:
+        geom = feature.GetGeometryRef()
+        if geom.Intersects(boundary_geom):
+            clipped_geom = geom.Intersection(boundary_geom)
+            output_feature = ogr.Feature(output_layer.GetLayerDefn())
+            output_feature.SetGeometry(clipped_geom)
+            for field_index in range(feature.GetFieldCount()):
+                output_feature.SetField(field_index, feature.GetField(field_index))
+            output_layer.CreateFeature(output_feature)
+            output_feature = None
 
-def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
-    boundary_gdf = gpd.read_file(boundary_kml_path)
-    if boundary_gdf.empty:
-        st.error(f"ไม่สามารถเปิดไฟล์: {boundary_kml_path}")
-        return
+    input_ds = None
+    output_ds = None
+    return output_kml  # ส่งคืนไฟล์ที่สร้างขึ้น
 
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+# ฟังก์ชันสำหรับประมวลผลทุกเขต
+def process_areas_with_red(input_kml, boundary_kml):
+    driver = ogr.GetDriverByName("KML")
+    boundary_ds = driver.Open(boundary_kml, 0)
+    if not boundary_ds:
+        st.error(f"ไม่สามารถเปิดไฟล์: {boundary_kml}")
+        return None
+    
+    boundary_layer = boundary_ds.GetLayer()
+    output_files = []  # สร้างรายการสำหรับไฟล์ KML ที่ได้
 
-    progress_bar = st.progress(0)
-    status_text = st.empty()
+    for boundary_feature in boundary_layer:
+        boundary_geom = boundary_feature.GetGeometryRef()
+        area_name = boundary_feature.GetField("name")
+        if not area_name:
+            st.warning("ไม่พบชื่อเขตในข้อมูล")
+            continue
 
-    total_features = len(boundary_gdf)
-    for i, boundary_row in boundary_gdf.iterrows():
-        boundary_geom = boundary_row.geometry
-        area_name = boundary_row.get("name", f"area_{i}")
+        output_kml = f"{area_name}.kml"
+        output_kml = clip_and_combine(input_kml, boundary_geom, output_kml)
+        if output_kml:
+            output_files.append(output_kml)  # เพิ่มไฟล์ KML ลงในรายการ
 
-        area_output_dir = os.path.join(output_dir, area_name)
-        if not os.path.exists(area_output_dir):
-            os.makedirs(area_output_dir)
+    boundary_ds = None
+    return output_files  # ส่งคืนรายการไฟล์ที่สร้างขึ้น
 
-        output_kml = os.path.join(area_output_dir, f"{area_name}.kml")
-        clip_and_combine(input_kml_path, boundary_geom, output_kml)
+# ฟังก์ชันสำหรับการรวมไฟล์ KML
+def combine_kml_files(output_files):
+    driver = ogr.GetDriverByName("KML")
+    combined_output_kml = tempfile.NamedTemporaryFile(delete=False, suffix='.kml')
 
-        progress = (i + 1) / total_features
-        progress_bar.progress(progress)
-        status_text.text(f"กำลังประมวลผล: {area_name} ({i+1}/{total_features})")
+    # สร้างไฟล์ KML ใหม่สำหรับรวมข้อมูลทั้งหมด
+    output_ds = driver.CreateDataSource(combined_output_kml.name)
+    output_layer = output_ds.CreateLayer("combined", geom_type=ogr.wkbPolygon)
 
-    status_text.text("การประมวลผลเสร็จสิ้น!")
-    st.success("การประมวลผลเสร็จสิ้น!")
+    for file in output_files:
+        input_ds = driver.Open(file, 0)
+        input_layer = input_ds.GetLayer()
 
-    return output_dir
+        for feature in input_layer:
+            output_layer.CreateFeature(feature)
 
+        input_ds = None
+
+    output_ds = None
+    return combined_output_kml.name  # ส่งคืนชื่อไฟล์ KML ที่รวมแล้ว
+
+# ฟังก์ชันสำหรับดาวน์โหลดไฟล์ทั้งหมดในรูปแบบ ZIP
+def create_zip_for_download(output_files):
+    zip_file = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    with zipfile.ZipFile(zip_file, 'w') as zipf:
+        for file in output_files:
+            zipf.write(file, os.path.basename(file))
+
+    return zip_file.name  # ส่งคืนเส้นทางของไฟล์ ZIP
+
+# Streamlit UI
 def main():
-    st.set_page_config(page_title="โปรแกรมตัดพื้นที่จากไฟล์ KML", layout="wide")
+    st.set_page_config(page_title="โปรแกรมตัดพื้นที่จาก KML", layout="wide")
+
     st.title("🗺️ โปรแกรมตัดพื้นที่จากไฟล์ KML")
     st.markdown("---")
 
-    input_file = st.file_uploader("📁 เลือกไฟล์พื้นที่สีแดง (area.kml)", type=['kml'])
-    boundary_file = st.file_uploader("📁 เลือกไฟล์ขอบเขต (boundary.kml)", type=['kml'])
-    output_dir = st.text_input("📂 ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์")
+    # Upload file sections
+    input_file = st.file_uploader("📁 เลือกไฟล์เส้นพื้นที่ที่ต้องการตรวจสอบ ( * ไฟล์ kml เท่านั้น * )", type=['kml'])
+    boundary_file = st.file_uploader("📁 เลือกไฟล์ขอบเขต ( * ไฟล์ kml เท่านั้น * )", type=['kml'])
 
-    if st.button("🚀 เริ่มประมวลผล", disabled=not (input_file and boundary_file)):
-        if input_file and boundary_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_input:
-                tmp_input.write(input_file.getvalue())
-                input_path = tmp_input.name
+    # สร้าง 2 คอลัมน์เพื่อแยกปุ่ม
+    col1, col2 = st.columns(2)
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_boundary:
-                tmp_boundary.write(boundary_file.getvalue())
-                boundary_path = tmp_boundary.name
+    with col1:
+        if st.button("🚀 เริ่มประมวลผลแยกไฟล์ KML"):
+            if input_file and boundary_file:
+                # บันทึกไฟล์ที่อัปโหลดไว้ชั่วคราว
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_input:
+                    tmp_input.write(input_file.getvalue())
+                    input_path = tmp_input.name
 
-            try:
-                result_dir = process_areas_with_red(input_path, boundary_path, output_dir or tempfile.mkdtemp())
-                if output_dir == "":  # ถ้าไม่ได้กรอกโฟลเดอร์
-                    # บีบอัดโฟลเดอร์เพื่อให้ดาวน์โหลด
-                    shutil.make_archive(result_dir, 'zip', result_dir)
-                    zip_file = f"{result_dir}.zip"
-                    with open(zip_file, "rb") as f:
-                        st.download_button(
-                            label="📥 ดาวน์โหลดไฟล์ผลลัพธ์",
-                            data=f,
-                            file_name="result.zip",
-                            mime="application/zip"
-                        )
-            finally:
-                os.unlink(input_path)
-                os.unlink(boundary_path)
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_boundary:
+                    tmp_boundary.write(boundary_file.getvalue())
+                    boundary_path = tmp_boundary.name
 
-        else:
-            st.error("กรุณาเลือกไฟล์ให้ครบถ้วน")
+                try:
+                    output_files = process_areas_with_red(input_path, boundary_path)
+                    
+                    if output_files:
+                        # ปุ่มดาวน์โหลดไฟล์แยก
+                        zip_file_path = create_zip_for_download(output_files)
+                        with open(zip_file_path, "rb") as f:
+                            st.download_button(
+                                label="📦 ดาวน์โหลดไฟล์ KML ทุกไฟล์",
+                                data=f,
+                                file_name="output_files.zip",
+                                mime="application/zip"
+                            )
+
+                finally:
+                    # ลบไฟล์ชั่วคราว
+                    os.unlink(input_path)
+                    os.unlink(boundary_path)
+
+            else:
+                st.error("กรุณาเลือกไฟล์ให้ครบถ้วน")
+
+    with col2:
+        if st.button("🚀 เริ่มประมวลผลรวมไฟล์ KML"):
+            if input_file and boundary_file:
+                # บันทึกไฟล์ที่อัปโหลดไว้ชั่วคราว
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_input:
+                    tmp_input.write(input_file.getvalue())
+                    input_path = tmp_input.name
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_boundary:
+                    tmp_boundary.write(boundary_file.getvalue())
+                    boundary_path = tmp_boundary.name
+
+                try:
+                    output_files = process_areas_with_red(input_path, boundary_path)
+                    
+                    if output_files:
+                        # ปุ่มดาวน์โหลดไฟล์ KML รวม
+                        combined_kml = combine_kml_files(output_files)
+                        with open(combined_kml, "rb") as f:
+                            st.download_button(
+                                label="🔗 ดาวน์โหลดไฟล์ KML รวม",
+                                data=f,
+                                file_name="combined_output.kml",
+                                mime="application/vnd.google-earth.kml+xml"
+                            )
+
+                finally:
+                    # ลบไฟล์ชั่วคราว
+                    os.unlink(input_path)
+                    os.unlink(boundary_path)
+
+            else:
+                st.error("กรุณาเลือกไฟล์ให้ครบถ้วน")
+
+    # คำแนะนำการใช้งาน
+    with st.expander("📌 คำแนะนำการใช้งาน"):
+        st.markdown("""
+        1. อัปโหลดไฟล์เส้นพื้นที่ที่ต้องการตรวจสอบ ( * ไฟล์ kml เท่านั้น *) 
+        2. อัปโหลดไฟล์ขอบเขต ( * ไฟล์ kml เท่านั้น * )
+        3. กดปุ่ม "เริ่มประมวลผลแยกไฟล์ KML" เพื่อดาวน์โหลดไฟล์แยกทั้งหมดในรูปแบบ ZIP
+        4. กดปุ่ม "เริ่มประมวลผลรวมไฟล์ KML" เพื่อดาวน์โหลดไฟล์ KML ที่รวมทุกเขต
+        """)
 
 if __name__ == "__main__":
     main()
