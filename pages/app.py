@@ -1,71 +1,111 @@
 import os
+import re
 import pandas as pd
 import simplekml
 import streamlit as st
 from io import BytesIO
 from datetime import datetime
 
-# Function to load KML lines (You would need to implement this function)
-def load_kml_lines(kml_file):
-    # Load KML and extract lines or data (placeholder implementation)
-    return []
+# ฟังก์ชันดึงค่าพิกัดจากข้อความโดยใช้ Regex
+def parse_coordinates(coord_str):
+    try:
+        matches = re.findall(r"[-+]?\d*\.\d+|[-+]?\d+", coord_str)
+        if len(matches) != 2:
+            raise ValueError("Invalid coordinate format")
+        lat, lon = map(float, matches)
+        return lon, lat
+    except Exception:
+        return None
 
-# Function to convert KML data to Excel (You would need to implement this function)
-def save_to_excel_memory(kml_lines):
-    # Convert KML lines to Excel data (placeholder implementation)
-    excel_buffer = BytesIO()
-    pd.DataFrame(kml_lines).to_excel(excel_buffer)
-    excel_buffer.seek(0)
-    return excel_buffer
-
-# Function to convert Excel to KML and save to a folder
+# ฟังก์ชันแปลง Excel เป็น KML และบันทึกลงโฟลเดอร์
 def convert_excel_to_kml(uploaded_file, sheet_name, base_folder):
-    # Existing function code here...
-    pass
+    try:
+        status_text.text("📌 กำลังประมวลผล...")
 
-# Streamlit UI setup
+        # ✅ อ่านไฟล์ Excel
+        data = pd.read_excel(uploaded_file, sheet_name=sheet_name)
+
+        # ลบช่องว่างจากชื่อคอลัมน์
+        data.columns = data.columns.str.strip()
+
+        # แปลงค่าพิกัด
+        data['พิกัด'] = data['พิกัด'].apply(lambda x: parse_coordinates(str(x)) if pd.notna(x) else None)
+        data = data.dropna(subset=['พิกัด'])
+
+        # จัดกลุ่มข้อมูลตาม ID
+        grouped = data.groupby('id')
+
+        # ✅ สร้างโฟลเดอร์ใหม่ตามวันเวลา
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        save_folder = os.path.join(base_folder, f"KML_Output_{timestamp}")
+        os.makedirs(save_folder, exist_ok=True)
+
+        # ✅ เก็บไฟล์ที่บันทึก
+        saved_files = []
+
+        for device_id, group in grouped:
+            kml = simplekml.Kml()
+            coords = group.sort_values('ลำดับพิกัด')['พิกัด'].tolist()
+
+            # สร้างเส้น (LineString)
+            linestring = kml.newlinestring(name=f"{group['ชื่อชุมสาย'].iloc[0]} {device_id}")
+            linestring.coords = coords
+            linestring.style.linestyle.color = simplekml.Color.blue
+            linestring.style.linestyle.width = 3
+
+            # ดึงข้อมูลทั้งหมดเป็น description
+            description = "\n".join([f"{col}: {group[col].iloc[0]}" for col in data.columns if col != 'พิกัด'])
+            linestring.description = description
+
+            # เพิ่มจุด (Point) สำหรับแต่ละพิกัด
+            for _, row in group.iterrows():
+                point = kml.newpoint(name=f"จุดที่ {row['ลำดับพิกัด']}", coords=[row['พิกัด']])
+                point.description = "\n".join([f"{col}: {row[col]}" for col in data.columns if col != 'พิกัด'])
+                point.style.iconstyle.color = simplekml.Color.red
+
+            # ✅ บันทึกไฟล์ KML ลงโฟลเดอร์ที่เลือก
+            kml_filename = os.path.join(save_folder, f"{device_id}.kml")
+            kml.save(kml_filename)
+            saved_files.append(kml_filename)
+
+        status_text.text("✅ ประมวลผลเสร็จสิ้น!")
+        return save_folder, saved_files
+    except Exception as e:
+        status_text.text("❌ เกิดข้อผิดพลาด!")
+        st.error(f"เกิดข้อผิดพลาด: {e}")
+        return None, None
+
+# ✅ แสดง UI ของเว็บแอป
 st.set_page_config(page_title="Excel to KML Converter", layout="centered")
 st.title("📍 Excel to KML Converter")
 
-# **Multiple File Upload**
-uploaded_files = st.file_uploader("📂 **เลือกไฟล์ KML หลายไฟล์**", type=["kml"], accept_multiple_files=True)
+# 🔹 **เพิ่มตัวเลือกไฟล์อัปโหลด**
+uploaded_file = st.file_uploader("📂 **เลือกไฟล์ Excel**", type=["xlsx", "xls"])
 
-# **Main Folder for Saving Files**
-output_folder = st.text_input("📁 **ระบุโฟลเดอร์ปลายทางสำหรับไฟล์ Excel**", value=os.getcwd())
+# 🔹 **เพิ่มช่องให้ใส่โฟลเดอร์หลัก**
+base_folder = st.text_input("📁 **ระบุโฟลเดอร์หลักสำหรับเก็บไฟล์ KML**", value=os.getcwd())
 
-# Check if files are uploaded
-if uploaded_files:
-    if st.button('⚡ เริ่มประมวลผล'):
-        with st.spinner("⏳ กำลังประมวลผล..."):
-            progress_bar = st.progress(0)
-            total_files = len(uploaded_files)
-            successful_files = 0
+# 🔹 ตรวจสอบว่ามีไฟล์หรือไม่
+if uploaded_file is not None:
+    try:
+        # ✅ อ่าน Excel และดึงชื่อ Sheet
+        excel_data = pd.ExcelFile(uploaded_file)
+        sheet_names = excel_data.sheet_names
+        sheet_name = st.selectbox("📄 **เลือก Sheet**", sheet_names)
 
-            for i, uploaded_file in enumerate(uploaded_files):
-                # Process each uploaded file
-                kml_lines = load_kml_lines(uploaded_file)
-                output_memory = save_to_excel_memory(kml_lines)
+        # 🔹 ปุ่มเริ่มแปลงไฟล์
+        status_text = st.empty()
+        if st.button("🚀 เริ่มแปลงเป็น KML"):
+            save_folder, saved_files = convert_excel_to_kml(uploaded_file, sheet_name, base_folder)
 
-                if output_folder:  # If an output folder is specified
-                    if not os.path.exists(output_folder):
-                        os.makedirs(output_folder)
-                    
-                    output_path = os.path.join(output_folder, uploaded_file.name.replace(".kml", ".xlsx"))
-                    with open(output_path, "wb") as f:
-                        f.write(output_memory.read())
-                    
-                    st.success(f"✅ ไฟล์บันทึกที่ {output_path}")
-                else:
-                    # Allow direct download from Streamlit
-                    st.download_button(
-                        label=f"📥 ดาวน์โหลด {uploaded_file.name.replace('.kml', '.xlsx')}",
-                        data=output_memory,
-                        file_name=f"{uploaded_file.name.replace('.kml', '.xlsx')}",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+            if saved_files:
+                st.success(f"✅ บันทึกไฟล์ KML สำเร็จที่ `{save_folder}`")
                 
-                # Update progress
-                successful_files += 1
-                progress_bar.progress(successful_files / total_files)
+                # 🔹 แสดงโฟลเดอร์ที่บันทึก
+                st.write(f"📂 **โฟลเดอร์ที่บันทึก:** `{save_folder}`")
 
-        st.success("✅ การประมวลผลเสร็จสมบูรณ์!")
+                # 🔹 แสดงไฟล์ที่บันทึกสำเร็จ
+                for filename in saved_files:
+                    st.write(f"📌 `{filename}`")
+    except Exception as e:
+        st.error(f"❌ ไม่สามารถโหลดไฟล์: {e}")
