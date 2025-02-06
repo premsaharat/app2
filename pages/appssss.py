@@ -3,33 +3,37 @@ import streamlit as st
 import geopandas as gpd
 import tempfile
 
+# ฟังก์ชันเดิมสำหรับตัดพื้นที่
 def clip_and_combine(input_kml, boundary_geom, output_kml):
-    # อ่านไฟล์ KML ด้วย GeoPandas
-    input_gdf = gpd.read_file(input_kml, driver='KML')
+    # อ่านไฟล์ KML ด้วย geopandas
+    input_gdf = gpd.read_file(input_kml)
     
-    # ทำการ clip
-    clipped = gpd.clip(input_gdf, boundary_geom)
+    # ตัดพื้นที่ที่มีการตัดกันกับขอบเขต
+    clipped_gdf = input_gdf[input_gdf.intersects(boundary_geom)]
     
-    # บันทึกผลลัพธ์
-    clipped.to_file(output_kml, driver='KML')
+    # บันทึกไฟล์ KML ที่ถูกตัด
+    clipped_gdf.to_file(output_kml, driver="KML")
     st.success(f"สร้างไฟล์ใหม่สำเร็จ: {output_kml}")
 
 def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
-    # อ่านไฟล์ขอบเขต
-    boundary_gdf = gpd.read_file(boundary_kml_path, driver='KML')
+    # อ่านไฟล์ขอบเขต KML ด้วย geopandas
+    boundary_gdf = gpd.read_file(boundary_kml_path)
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     progress_bar = st.progress(0)
     status_text = st.empty()
-    
+
     total_features = len(boundary_gdf)
-    
-    for i, (idx, boundary_row) in enumerate(boundary_gdf.iterrows()):
-        boundary_geom = boundary_row.geometry
-        area_name = boundary_row.get('name', f'area_{i}')
+    for i, boundary_feature in boundary_gdf.iterrows():
+        boundary_geom = boundary_feature['geometry']
+        area_name = boundary_feature['name']  # ตรวจสอบว่าในข้อมูลมีฟิลด์ชื่อ 'name'
         
+        if not area_name:
+            st.warning("ไม่พบชื่อเขตในข้อมูล")
+            continue
+
         area_output_dir = os.path.join(output_dir, area_name)
         if not os.path.exists(area_output_dir):
             os.makedirs(area_output_dir)
@@ -37,9 +41,68 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
         output_kml = os.path.join(area_output_dir, f"{area_name}.kml")
         clip_and_combine(input_kml_path, boundary_geom, output_kml)
         
+        # อัพเดทความคืบหน้า
         progress = (i + 1) / total_features
         progress_bar.progress(progress)
         status_text.text(f"กำลังประมวลผล: {area_name} ({i+1}/{total_features})")
 
     status_text.text("การประมวลผลเสร็จสิ้น!")
     st.success("การประมวลผลเสร็จสิ้น!")
+
+# Streamlit UI
+def main():
+    st.set_page_config(page_title="โปรแกรมตัดพื้นที่จากไฟล์ KML", layout="wide")
+    
+    # CSS
+    st.markdown("""
+        <style>
+        .stButton>button {
+            width: 100%;
+            margin: 10px 0;
+        }
+        .css-1v0mbdj {
+            width: 100%;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.title("🗺️ โปรแกรมตัดพื้นที่จากไฟล์ KML")
+    st.markdown("---")
+
+    # File uploaders
+    input_file = st.file_uploader("📁 เลือกไฟล์พื้นที่สีแดง (area.kml)", type=['kml'])
+    boundary_file = st.file_uploader("📁 เลือกไฟล์ขอบเขต (boundary.kml)", type=['kml'])
+    output_dir = st.text_input("📂 ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์")
+
+    if st.button("🚀 เริ่มประมวลผล", disabled=not (input_file and boundary_file and output_dir)):
+        if input_file and boundary_file and output_dir:
+            # บันทึกไฟล์ที่อัปโหลดไว้ชั่วคราว
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_input:
+                tmp_input.write(input_file.getvalue())
+                input_path = tmp_input.name
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_boundary:
+                tmp_boundary.write(boundary_file.getvalue())
+                boundary_path = tmp_boundary.name
+
+            try:
+                process_areas_with_red(input_path, boundary_path, output_dir)
+            finally:
+                # ลบไฟล์ชั่วคราว
+                os.unlink(input_path)
+                os.unlink(boundary_path)
+        else:
+            st.error("กรุณาเลือกไฟล์และระบุโฟลเดอร์ให้ครบถ้วน")
+
+    # คำแนะนำการใช้งาน
+    with st.expander("📌 คำแนะนำการใช้งาน"):
+        st.markdown("""
+        1. อัปโหลดไฟล์พื้นที่สีแดง (area.kml)
+        2. อัปโหลดไฟล์ขอบเขต (boundary.kml)
+        3. ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์
+        4. กดปุ่ม "เริ่มประมวลผล"
+        5. รอจนกว่าการประมวลผลจะเสร็จสิ้น
+        """)
+
+if __name__ == "__main__":
+    main()
