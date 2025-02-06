@@ -5,6 +5,49 @@ import time
 if 'theme' not in st.session_state:
     st.session_state.theme = 'สว่าง'
 
+# Function to apply theme
+def apply_theme(theme_name):
+    if theme_name == 'มืด':
+        return """
+        <style>
+        /* Dark theme styles */
+        .big-button {
+            background-color: #1e1e1e !important;
+            border: 2px solid #333 !important;
+            color: white !important;
+        }
+        .stats-box, .feature-list {
+            background-color: #2d2d2d !important;
+            color: white !important;
+        }
+        .stApp {
+            background-color: #121212;
+            color: white;
+        }
+        </style>
+        """
+    elif theme_name == 'สว่าง':
+        return """
+        <style>
+        /* Light theme styles */
+        .big-button {
+            background-color: white !important;
+            border: 2px solid #f0f2f6 !important;
+            color: black !important;
+        }
+        .stats-box, .feature-list {
+            background-color: #f8fafc !important;
+            color: black !important;
+        }
+        .stApp {
+            background-color: white;
+            color: black;
+        }
+        </style>
+        """
+    else:  # System theme
+        return ""
+
 # Page config
 st.set_page_config(
     page_title="File Converter Hub",
@@ -12,49 +55,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Theme-based CSS
-def get_theme_css():
-    if st.session_state.theme == 'มืด':
-        return """
-        <style>
-        /* Dark theme */
-        .big-button {
-            background-color: #1e1e1e;
-            color: white;
-            border: 2px solid #333;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-        }
-        .stats-box {
-            background-color: #2d2d2d;
-            color: white;
-        }
-        .feature-list {
-            background-color: #2d2d2d;
-            color: white;
-        }
-        </style>
-        """
-    else:  # Light theme
-        return """
-        <style>
-        /* Light theme */
-        .big-button {
-            background-color: white;
-            color: black;
-            border: 2px solid #f0f2f6;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        .stats-box {
-            background-color: #f8fafc;
-            color: black;
-        }
-        .feature-list {
-            background-color: #f8fafc;
-            color: black;
-        }
-        </style>
-        """
 
 # Base CSS
 st.markdown("""
@@ -85,10 +85,12 @@ st.markdown("""
         margin: 0.5rem;
         text-align: center;
         transition: all 0.3s ease;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
     
     .big-button:hover {
         transform: translateY(-5px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
     
     .tool-icon {
@@ -113,23 +115,21 @@ st.markdown("""
         background-color: #2e6bf0;
     }
     </style>
-    """ + get_theme_css(), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # Sidebar with user guide and settings
 with st.sidebar:
     st.title("⚙️ การตั้งค่า")
-    
-    # Theme selector with functionality
     selected_theme = st.selectbox(
         "ธีม",
         ["สว่าง", "มืด", "ระบบ"],
         index=["สว่าง", "มืด", "ระบบ"].index(st.session_state.theme)
     )
     
-    # Update theme if changed
+    # Apply theme when changed
     if selected_theme != st.session_state.theme:
         st.session_state.theme = selected_theme
-        st.experimental_rerun()
+        st.markdown(apply_theme(selected_theme), unsafe_allow_html=True)
     
     st.markdown("---")
     st.markdown("### 📖 คู่มือการใช้งาน")
@@ -163,28 +163,28 @@ tools = [
         "icon": "📊",
         "title": "Excel to KML",
         "description": "แปลงไฟล์ Excel เป็น KML สำหรับแสดงข้อมูลบน Google Earth",
-        "usage_count": "1,234",
+        "usage_count": 1234,
         "page": "pages/app.py"
     },
     {
         "icon": "📑",
         "title": "KML to Excel",
         "description": "แปลงไฟล์ KML เป็น Excel เพื่อจัดการข้อมูลได้ง่ายขึ้น",
-        "usage_count": "987",
+        "usage_count": 987,
         "page": "pages/appss.py"
     },
     {
         "icon": "〽️",
         "title": "สร้างเส้นซ้อน",
         "description": "สร้างและแก้ไขเส้นซ้อนบนแผนที่แบบอัตโนมัติ",
-        "usage_count": "756",
+        "usage_count": 756,
         "page": "pages/appsss.py"
     },
     {
         "icon": "✂️",
         "title": "ตัดพื้นที่",
         "description": "ตัดพื้นที่ตามขอบเขตที่กำหนดอย่างแม่นยำ",
-        "usage_count": "543",
+        "usage_count": 543,
         "page": "pages/appssss.py"
     }
 ]
@@ -214,7 +214,7 @@ for idx, tool in enumerate(filtered_tools):
                 time.sleep(0.5)
                 st.switch_page(tool['page'])
 
-# Feature highlights
+# Feature highlights (unchanged)
 st.markdown("---")
 st.markdown("### ✨ คุณสมบัติเด่น")
 
