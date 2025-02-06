@@ -1,8 +1,7 @@
-import shutil
-import tempfile
-import os
 import geopandas as gpd
+import os
 import streamlit as st
+import tempfile
 
 # ฟังก์ชันเดิมสำหรับตัดพื้นที่
 def clip_and_combine(input_kml, boundary_geom, output_kml):
@@ -21,10 +20,10 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
         os.makedirs(output_dir)
 
     progress_bar = st.progress(0)
-    status_text = st.empty()  # สร้าง text placeholder
+    status_text = st.empty()
+    output_files = []  # เก็บชื่อไฟล์ที่สร้างขึ้น
 
     total_features = len(boundary_gdf)
-    output_files = []  # ลิสต์สำหรับเก็บไฟล์ทั้งหมด
     for i, boundary_feature in boundary_gdf.iterrows():
         boundary_geom = boundary_feature.geometry
         area_name = boundary_feature.get('name', 'Unnamed Area')  # ใช้ get สำหรับค่าที่อาจไม่มีก็ได้
@@ -32,7 +31,11 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
             st.warning("ไม่พบชื่อเขตในข้อมูล")
             continue
 
-        output_kml = os.path.join(output_dir, f"{area_name}.kml")
+        area_output_dir = os.path.join(output_dir, area_name)
+        if not os.path.exists(area_output_dir):
+            os.makedirs(area_output_dir)
+
+        output_kml = os.path.join(area_output_dir, f"{area_name}.kml")
         clip_and_combine(input_kml_path, boundary_geom, output_kml)
         output_files.append(output_kml)  # เก็บไฟล์ที่ถูกสร้าง
 
@@ -41,11 +44,12 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
         progress_bar.progress(progress)
         status_text.text(f"กำลังประมวลผล: {area_name} ({i+1}/{total_features})")
 
-    status_text.text("การประมวลผลเสร็จสิ้น!")  # แสดงข้อความเมื่อการประมวลผลเสร็จสิ้น
+    status_text.text("การประมวลผลเสร็จสิ้น!")
     st.success("การประมวลผลเสร็จสิ้น!")
 
-    # แสดงปุ่มดาวน์โหลดไฟล์ทั้งหมด
+    # การดาวน์โหลดไฟล์
     if output_files:
+        status_text.update(label="✅ เสร็จสิ้น!", state="complete")
         for file in output_files:
             with open(file, "rb") as f:
                 st.download_button(
