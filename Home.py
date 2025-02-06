@@ -25,7 +25,7 @@ st.title("🏠 File Converter Hub")
 st.markdown("### เลือกเครื่องมือที่ต้องการใช้งาน")
 
 # แก้ไขเป็น 3 คอลัมน์
-col1, col2, col3 = st.columns(3)
+col1, col2, col3 ,col4 = st.columns(4)
 
 with col1:
     st.markdown("""
@@ -56,6 +56,16 @@ with col3:
     """, unsafe_allow_html=True)
     if st.button("เปิดสร้างเส้นซ้อน", key="btn3"):
         st.switch_page("pages/appsss.py")
+
+with col4:
+    st.markdown("""
+        <div class="big-button">
+            <h2> ตัดพื้นที่ </h2>
+            <p> ตัดพื้นที่ตามขอบเขต </p>
+        </div>
+    """, unsafe_allow_html=True)
+    if st.button("เปิดตัดพื้นที่ตามขอบเขต", key="btn4"):
+        st.switch_page("pages/appssss.py")
 
 # เพิ่มข้อมูลเพิ่มเติม
 st.markdown("---")
