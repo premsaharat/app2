@@ -10,13 +10,12 @@ def apply_theme(theme_name):
     if theme_name == 'มืด':
         return """
         <style>
-        /* Dark theme styles */
         .big-button {
             background-color: #1e1e1e !important;
             border: 2px solid #333 !important;
             color: white !important;
         }
-        .stats-box, .feature-list {
+        .stats-box {
             background-color: #2d2d2d !important;
             color: white !important;
         }
@@ -29,13 +28,12 @@ def apply_theme(theme_name):
     elif theme_name == 'สว่าง':
         return """
         <style>
-        /* Light theme styles */
         .big-button {
             background-color: white !important;
             border: 2px solid #f0f2f6 !important;
             color: black !important;
         }
-        .stats-box, .feature-list {
+        .stats-box {
             background-color: #f8fafc !important;
             color: black !important;
         }
@@ -105,12 +103,6 @@ st.markdown("""
         text-align: center;
     }
     
-    .feature-list {
-        border-radius: 0.5rem;
-        padding: 1rem;
-        margin-top: 1rem;
-    }
-    
     .stProgress > div > div > div {
         background-color: #2e6bf0;
     }
@@ -152,7 +144,6 @@ with st.sidebar:
 
 # Main content
 st.title("🔄 File Converter Hub")
-st.markdown("### ศูนย์รวมเครื่องมือแปลงไฟล์ที่ใช้งานง่าย รวดเร็ว และมีประสิทธิภาพ")
 
 # Search functionality
 search = st.text_input("🔍 ค้นหาเครื่องมือ...", placeholder="พิมพ์ชื่อเครื่องมือที่ต้องการ...")
@@ -195,10 +186,13 @@ if search:
 else:
     filtered_tools = tools
 
-# Display tools in grid
-cols = st.columns(4)
-for idx, tool in enumerate(filtered_tools):
-    with cols[idx % 4]:
+# Display tools in 2-column grid
+for i in range(0, len(filtered_tools), 2):
+    col1, col2 = st.columns(2)
+    
+    # First column
+    with col1:
+        tool = filtered_tools[i]
         st.markdown(f"""
             <div class="big-button">
                 <div class="tool-icon">{tool['icon']}</div>
@@ -209,52 +203,29 @@ for idx, tool in enumerate(filtered_tools):
                 </div>
             </div>
         """, unsafe_allow_html=True)
-        if st.button(f"เปิดใช้งาน {tool['title']}", key=f"btn{idx+1}"):
+        if st.button(f"เปิดใช้งาน {tool['title']}", key=f"btn{i+1}"):
             with st.spinner("กำลังโหลด..."):
                 time.sleep(0.5)
                 st.switch_page(tool['page'])
-
-# Feature highlights (unchanged)
-st.markdown("---")
-st.markdown("### ✨ คุณสมบัติเด่น")
-
-feature_col1, feature_col2, feature_col3 = st.columns(3)
-
-with feature_col1:
-    st.markdown("""
-        <div class="feature-list">
-            <h4>🚀 ประสิทธิภาพสูง</h4>
-            <ul>
-                <li>แปลงไฟล์ได้รวดเร็ว</li>
-                <li>รองรับไฟล์ขนาดใหญ่</li>
-                <li>ประมวลผลแบบ Real-time</li>
-            </ul>
-        </div>
-    """, unsafe_allow_html=True)
-
-with feature_col2:
-    st.markdown("""
-        <div class="feature-list">
-            <h4>🔒 ความปลอดภัย</h4>
-            <ul>
-                <li>การเข้ารหัสข้อมูล</li>
-                <li>ลบไฟล์อัตโนมัติ</li>
-                <li>ไม่มีการเก็บข้อมูล</li>
-            </ul>
-        </div>
-    """, unsafe_allow_html=True)
-
-with feature_col3:
-    st.markdown("""
-        <div class="feature-list">
-            <h4>💡 ใช้งานง่าย</h4>
-            <ul>
-                <li>อินเตอร์เฟซเรียบง่าย</li>
-                <li>มีคู่มือการใช้งาน</li>
-                <li>รองรับภาษาไทย</li>
-            </ul>
-        </div>
-    """, unsafe_allow_html=True)
+    
+    # Second column (if available)
+    with col2:
+        if i + 1 < len(filtered_tools):
+            tool = filtered_tools[i + 1]
+            st.markdown(f"""
+                <div class="big-button">
+                    <div class="tool-icon">{tool['icon']}</div>
+                    <h2>{tool['title']}</h2>
+                    <p>{tool['description']}</p>
+                    <div class="stats-box">
+                        <small>ใช้งานแล้ว {tool['usage_count']} ครั้ง</small>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            if st.button(f"เปิดใช้งาน {tool['title']}", key=f"btn{i+2}"):
+                with st.spinner("กำลังโหลด..."):
+                    time.sleep(0.5)
+                    st.switch_page(tool['page'])
 
 # Footer
 st.markdown("---")
