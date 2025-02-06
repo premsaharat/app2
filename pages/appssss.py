@@ -21,7 +21,8 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
 
     progress_bar = st.progress(0)
     status_text = st.empty()
-    
+    output_files = []  # เก็บชื่อไฟล์ที่สร้างขึ้น
+
     total_features = len(boundary_gdf)
     for i, boundary_feature in boundary_gdf.iterrows():
         boundary_geom = boundary_feature.geometry
@@ -36,7 +37,8 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
 
         output_kml = os.path.join(area_output_dir, f"{area_name}.kml")
         clip_and_combine(input_kml_path, boundary_geom, output_kml)
-        
+        output_files.append(output_kml)  # เก็บไฟล์ที่ถูกสร้าง
+
         # อัพเดทความคืบหน้า
         progress = (i + 1) / total_features
         progress_bar.progress(progress)
@@ -44,6 +46,18 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
 
     status_text.text("การประมวลผลเสร็จสิ้น!")
     st.success("การประมวลผลเสร็จสิ้น!")
+
+    # การดาวน์โหลดไฟล์
+    if output_files:
+        status_text.update(label="✅ เสร็จสิ้น!", state="complete")
+        for file in output_files:
+            with open(file, "rb") as f:
+                st.download_button(
+                    label=f"📥 ดาวน์โหลด {os.path.basename(file)}",
+                    data=f,
+                    file_name=os.path.basename(file),
+                    mime="application/vnd.google-earth.kml+xml"
+                )
 
 # Streamlit UI
 def main():
@@ -68,10 +82,14 @@ def main():
     # File uploaders
     input_file = st.file_uploader("📁 เลือกไฟล์พื้นที่สีแดง (area.kml)", type=['kml'])
     boundary_file = st.file_uploader("📁 เลือกไฟล์ขอบเขต (boundary.kml)", type=['kml'])
-    output_dir = st.text_input("📂 ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์")
+    output_dir = st.text_input("📂 ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์ (เว้นว่างไว้หากไม่ต้องการ)")
 
-    if st.button("🚀 เริ่มประมวลผล", disabled=not (input_file and boundary_file and output_dir)):
-        if input_file and boundary_file and output_dir:
+    if st.button("🚀 เริ่มประมวลผล", disabled=not (input_file and boundary_file)):
+        if input_file and boundary_file:
+            # กำหนดโฟลเดอร์ output ถ้าไม่ได้ระบุ
+            if not output_dir:
+                output_dir = tempfile.mkdtemp()
+
             # บันทึกไฟล์ที่อัปโหลดไว้ชั่วคราว
             with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_input:
                 tmp_input.write(input_file.getvalue())
@@ -95,7 +113,7 @@ def main():
         st.markdown("""
         1. อัปโหลดไฟล์พื้นที่สีแดง (area.kml)
         2. อัปโหลดไฟล์ขอบเขต (boundary.kml)
-        3. ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์
+        3. ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์ (หรือเว้นว่างหากไม่ต้องการ)
         4. กดปุ่ม "เริ่มประมวลผล"
         5. รอจนกว่าการประมวลผลจะเสร็จสิ้น
         """)
