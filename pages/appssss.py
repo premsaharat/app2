@@ -45,15 +45,18 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
     st.success("การประมวลผลเสร็จสิ้น!")
 
     # แสดงปุ่มดาวน์โหลดไฟล์ทั้งหมด
+    # แสดงปุ่มดาวน์โหลดไฟล์ทั้งหมด
     if output_files:
-        for file in output_files:
+        for i, file in enumerate(output_files):
             with open(file, "rb") as f:
-                st.download_button(
-                    label=f"📥 ดาวน์โหลด {os.path.basename(file)}",
-                    data=f,
-                    file_name=os.path.basename(file),
-                    mime="application/vnd.google-earth.kml+xml"
-                )
+            st.download_button(
+                label=f"📥 ดาวน์โหลด {os.path.basename(file)}",
+                data=f,
+                file_name=os.path.basename(file),
+                mime="application/vnd.google-earth.kml+xml",
+                key=f"download_button_{i}"  # เพิ่ม key ที่ไม่ซ้ำกัน
+            )
+
 
 # Streamlit UI
 def main():
