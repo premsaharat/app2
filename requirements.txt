@@ -5,5 +5,3 @@ simplekml
 lxml
 shapely
 beautifulsoup4
-GDAL
-
