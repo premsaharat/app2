@@ -1,81 +1,67 @@
 import os
 import streamlit as st
-from osgeo import ogr
 import tempfile
 import zipfile
+from lxml import etree
 
 # ฟังก์ชันสำหรับตัดพื้นที่สีแดง
 def clip_and_combine(input_kml, boundary_geom, output_kml):
-    driver = ogr.GetDriverByName("KML")
-    input_ds = driver.Open(input_kml, 0)
-    if not input_ds:
-        st.error(f"ไม่สามารถเปิดไฟล์: {input_kml}")
+    # ใช้ lxml อ่านไฟล์ KML
+    try:
+        tree = etree.parse(input_kml)
+        root = tree.getroot()
+
+        # ค้นหาภายในเอกสาร KML (ลบข้อมูลที่ไม่ต้องการหรือที่อยู่นอกพื้นที่)
+        # สมมุติว่า boundary_geom เป็นพื้นที่ที่เราต้องการนำมาใช้ในการตัดข้อมูล (ในกรณีนี้ต้องมีการแปลงค่าหรือแยกพิกัด)
+        # ในตัวอย่างนี้ใช้คำสั่งทั่วไปในการค้นหา <Placemark> เพื่อให้แน่ใจว่ามีการใช้งานพิกัดที่เหมาะสม
+        for placemark in root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
+            coordinates = placemark.find(".//{http://www.opengis.net/kml/2.2}coordinates")
+            if coordinates is not None:
+                # ตัดพื้นที่ตามพิกัด (กรณีนี้ต้องใช้ logic ในการคำนวณแยกพื้นที่จริง)
+                coord_list = coordinates.text.strip().split()
+                for coord in coord_list:
+                    lon, lat = map(float, coord.split(","))
+                    # ตรวจสอบว่า point อยู่ใน boundary_geom (boundary_geom ยังต้องแปลงในขั้นตอนนี้)
+                    if lon < boundary_geom["lon_max"] and lon > boundary_geom["lon_min"] and lat < boundary_geom["lat_max"] and lat > boundary_geom["lat_min"]:
+                        continue
+                    else:
+                        placemark.getparent().remove(placemark)  # ลบ Placemark หากอยู่นอกพื้นที่ที่กำหนด
+
+        # บันทึกไฟล์ KML หลังจากตัดข้อมูล
+        tree.write(output_kml)
+
+        return output_kml
+    except Exception as e:
+        st.error(f"เกิดข้อผิดพลาดในการตัดข้อมูล: {e}")
         return None
-    
-    input_layer = input_ds.GetLayer()
-    output_ds = driver.CreateDataSource(output_kml)
-    output_layer = output_ds.CreateLayer("clipped", geom_type=ogr.wkbPolygon)
-
-    for feature in input_layer:
-        geom = feature.GetGeometryRef()
-        if geom.Intersects(boundary_geom):
-            clipped_geom = geom.Intersection(boundary_geom)
-            output_feature = ogr.Feature(output_layer.GetLayerDefn())
-            output_feature.SetGeometry(clipped_geom)
-            for field_index in range(feature.GetFieldCount()):
-                output_feature.SetField(field_index, feature.GetField(field_index))
-            output_layer.CreateFeature(output_feature)
-            output_feature = None
-
-    input_ds = None
-    output_ds = None
-    return output_kml  # ส่งคืนไฟล์ที่สร้างขึ้น
 
 # ฟังก์ชันสำหรับประมวลผลทุกเขต
 def process_areas_with_red(input_kml, boundary_kml):
-    driver = ogr.GetDriverByName("KML")
-    boundary_ds = driver.Open(boundary_kml, 0)
-    if not boundary_ds:
-        st.error(f"ไม่สามารถเปิดไฟล์: {boundary_kml}")
-        return None
-    
-    boundary_layer = boundary_ds.GetLayer()
+    boundary_geom = {"lat_min": 12.5, "lat_max": 13.5, "lon_min": 100.5, "lon_max": 101.5}  # ตัวอย่างขอบเขต
+
     output_files = []  # สร้างรายการสำหรับไฟล์ KML ที่ได้
 
-    for boundary_feature in boundary_layer:
-        boundary_geom = boundary_feature.GetGeometryRef()
-        area_name = boundary_feature.GetField("name")
-        if not area_name:
-            st.warning("ไม่พบชื่อเขตในข้อมูล")
-            continue
+    output_kml = "output_area.kml"
+    output_kml = clip_and_combine(input_kml, boundary_geom, output_kml)
 
-        output_kml = f"{area_name}.kml"
-        output_kml = clip_and_combine(input_kml, boundary_geom, output_kml)
-        if output_kml:
-            output_files.append(output_kml)  # เพิ่มไฟล์ KML ลงในรายการ
+    if output_kml:
+        output_files.append(output_kml)  # เพิ่มไฟล์ KML ลงในรายการ
 
-    boundary_ds = None
     return output_files  # ส่งคืนรายการไฟล์ที่สร้างขึ้น
 
 # ฟังก์ชันสำหรับการรวมไฟล์ KML
 def combine_kml_files(output_files):
-    driver = ogr.GetDriverByName("KML")
     combined_output_kml = tempfile.NamedTemporaryFile(delete=False, suffix='.kml')
 
-    # สร้างไฟล์ KML ใหม่สำหรับรวมข้อมูลทั้งหมด
-    output_ds = driver.CreateDataSource(combined_output_kml.name)
-    output_layer = output_ds.CreateLayer("combined", geom_type=ogr.wkbPolygon)
+    with open(combined_output_kml.name, "w") as outfile:
+        outfile.write("<kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document>")
 
-    for file in output_files:
-        input_ds = driver.Open(file, 0)
-        input_layer = input_ds.GetLayer()
+        for file in output_files:
+            with open(file, "r") as infile:
+                outfile.write(infile.read())
 
-        for feature in input_layer:
-            output_layer.CreateFeature(feature)
+        outfile.write("</Document></kml>")
 
-        input_ds = None
-
-    output_ds = None
     return combined_output_kml.name  # ส่งคืนชื่อไฟล์ KML ที่รวมแล้ว
 
 # ฟังก์ชันสำหรับดาวน์โหลดไฟล์ทั้งหมดในรูปแบบ ZIP
