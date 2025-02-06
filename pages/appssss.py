@@ -1,8 +1,8 @@
-import geopandas as gpd
-from shapely.geometry import Polygon
 import os
+import shutil
 import tempfile
 import streamlit as st
+import geopandas as gpd
 
 def clip_and_combine(input_kml, boundary_geom, output_kml):
     # อ่านไฟล์ KML ด้วย geopandas
@@ -50,6 +50,8 @@ def process_areas_with_red(input_kml_path, boundary_kml_path, output_dir):
     status_text.text("การประมวลผลเสร็จสิ้น!")
     st.success("การประมวลผลเสร็จสิ้น!")
 
+    return output_dir
+
 def main():
     st.set_page_config(page_title="โปรแกรมตัดพื้นที่จากไฟล์ KML", layout="wide")
     st.title("🗺️ โปรแกรมตัดพื้นที่จากไฟล์ KML")
@@ -59,8 +61,8 @@ def main():
     boundary_file = st.file_uploader("📁 เลือกไฟล์ขอบเขต (boundary.kml)", type=['kml'])
     output_dir = st.text_input("📂 ระบุโฟลเดอร์สำหรับเก็บผลลัพธ์")
 
-    if st.button("🚀 เริ่มประมวลผล", disabled=not (input_file and boundary_file and output_dir)):
-        if input_file and boundary_file and output_dir:
+    if st.button("🚀 เริ่มประมวลผล", disabled=not (input_file and boundary_file)):
+        if input_file and boundary_file:
             with tempfile.NamedTemporaryFile(delete=False, suffix='.kml') as tmp_input:
                 tmp_input.write(input_file.getvalue())
                 input_path = tmp_input.name
@@ -70,12 +72,24 @@ def main():
                 boundary_path = tmp_boundary.name
 
             try:
-                process_areas_with_red(input_path, boundary_path, output_dir)
+                result_dir = process_areas_with_red(input_path, boundary_path, output_dir or tempfile.mkdtemp())
+                if output_dir == "":  # ถ้าไม่ได้กรอกโฟลเดอร์
+                    # บีบอัดโฟลเดอร์เพื่อให้ดาวน์โหลด
+                    shutil.make_archive(result_dir, 'zip', result_dir)
+                    zip_file = f"{result_dir}.zip"
+                    with open(zip_file, "rb") as f:
+                        st.download_button(
+                            label="📥 ดาวน์โหลดไฟล์ผลลัพธ์",
+                            data=f,
+                            file_name="result.zip",
+                            mime="application/zip"
+                        )
             finally:
                 os.unlink(input_path)
                 os.unlink(boundary_path)
+
         else:
-            st.error("กรุณาเลือกไฟล์และระบุโฟลเดอร์ให้ครบถ้วน")
+            st.error("กรุณาเลือกไฟล์ให้ครบถ้วน")
 
 if __name__ == "__main__":
     main()
