@@ -153,7 +153,7 @@ tools = [
     {
         "icon": "📊",
         "title": "Excel to KML",
-        "description": "แปลงไฟล์ Excel เป็น KML สำหรับแสดงข้อมูลบน Google Earth",
+        "description": "แปลงไฟล์ Excel เป็น KML สำหรับแสดงข้อมูลบน Google Earth (NTSP)",
         "usage_count": 1234,
         "page": "pages/app.py"
     },
