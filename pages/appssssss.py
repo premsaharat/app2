@@ -183,15 +183,16 @@ if uploaded_file and uploaded_tags:
                 )
 
 # แสดงคำแนะนำการใช้งาน
-with st.expander("ℹ️ How to use"):
+with st.expander("ℹ️ วิธีใช้งาน"):
     st.write("""
-    1. Upload your KML file or ZIP file containing KML files
-    2. Upload a text file containing tags (one tag per line)
-    3. The app will process your files and show processing details
-    4. Download the filtered KML file when processing is complete
-    
-    Supported file types:
-    - KML files (.kml)
-    - ZIP archives containing KML files (.zip)
-    - Text files for tags (.txt)
+    1. อัปโหลดไฟล์ KML ของคุณ หรือไฟล์ ZIP ที่มีไฟล์ KML
+    2. อัปโหลดไฟล์ข้อความที่มีแท็ก (หนึ่งแทกต่อบรรทัด)
+    3. แอปจะประมวลผลไฟล์ของคุณและแสดงรายละเอียดการประมวลผล
+    4. ดาวน์โหลดไฟล์ KML ที่ผ่านการคัดกรองเมื่อการประมวลผลเสร็จสิ้น
+
+    ประเภทไฟล์ที่รองรับ:
+    - ไฟล์ KML (.kml)
+    - ไฟล์ ZIP ที่มีไฟล์ KML (.zip)
+    - ไฟล์ข้อความสำหรับแท็ก (.txt)
     """)
+
