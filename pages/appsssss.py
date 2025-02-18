@@ -26,7 +26,7 @@ if uploaded_file:
         df.columns = [' '.join(col).strip() if isinstance(col, tuple) else col for col in df.columns]
 
         # แสดงชื่อคอลัมน์ที่อ่านมา
-        #st.write("🔍 คอลัมน์ที่อ่านมา:", df.columns.tolist())
+        st.write("🔍 คอลัมน์ที่อ่านมา:", df.columns.tolist())
 
         # ฟังก์ชันหาคอลัมน์ที่ใกล้เคียงที่สุด
         def find_closest_column(df, column_name):
