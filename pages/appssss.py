@@ -57,7 +57,7 @@ def process_areas_with_red(input_kml, boundary_kml):
     return output_files
 
 # ฟังก์ชันรวมไฟล์ KML
-def combine_kml_files(output_files):
+def combine_kml_files(output_files, boundary_name):
     combined_output_kml = tempfile.NamedTemporaryFile(delete=False, suffix='.kml')
     kml_elem = etree.Element("kml", xmlns="http://www.opengis.net/kml/2.2")
     document_elem = etree.SubElement(kml_elem, "Document")
@@ -73,7 +73,7 @@ def combine_kml_files(output_files):
 
     combined_tree = etree.ElementTree(kml_elem)
     combined_tree.write(combined_output_kml.name, encoding="utf-8", xml_declaration=True)
-    return combined_output_kml.name  
+    return combined_output_kml.name, f"{boundary_name}_combined.kml"
 
 # ฟังก์ชันสร้างไฟล์ ZIP
 def create_zip_for_download(output_files):
@@ -162,12 +162,13 @@ def main():
                         output_files = process_areas_with_red(input_path, boundary_path)
 
                     if output_files:
-                        combined_kml = combine_kml_files(output_files)
+                        boundary_name = os.path.splitext(os.path.basename(boundary_file.name))[0]
+                        combined_kml, combined_kml_name = combine_kml_files(output_files, boundary_name)
                         with open(combined_kml, "rb") as f:
                             st.download_button(
                                 label="🔗 ดาวน์โหลดไฟล์ KML รวม",
                                 data=f,
-                                file_name="combined_output.kml",
+                                file_name=combined_kml_name,
                                 mime="application/vnd.google-earth.kml+xml"
                             )
                 finally:
