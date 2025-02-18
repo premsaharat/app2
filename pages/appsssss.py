@@ -143,7 +143,7 @@ if uploaded_file:
             # แปลงข้อมูลให้เป็น float64 เพื่อแก้ปัญหาการแปลงเป็น Arrow table
             numeric_columns = ["จำนวน_tag_น้อยกว่า_63", "จำนวน_tag_มากกว่า_63", "จำนวน_tag", "ค่าพาดสายประจำปี"]
             for col in numeric_columns:
-                summary[col] = summary[col].astype('float64')
+                summary[col] = pd.to_numeric(summary[col], errors='coerce').fillna(0).astype('float64')
 
             return summary.reset_index()
 
