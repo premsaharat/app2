@@ -24,7 +24,7 @@ if uploaded_file:
         df.columns = [' '.join(col).strip() if isinstance(col, tuple) else col for col in df.columns]
 
         # แสดงชื่อคอลัมน์ที่อ่านมา
-        st.write("🔍 คอลัมน์ที่อ่านมา:", df.columns.tolist())
+        # st.write("🔍 คอลัมน์ที่อ่านมา:", df.columns.tolist())
 
         # ฟังก์ชันหาคอลัมน์ที่ใกล้เคียงที่สุด
         def find_closest_column(df, column_name):
@@ -129,16 +129,14 @@ if uploaded_file:
             grouped["ประเภท"] = grouped["เส้นผ่านศูนย์กลางรวม"].apply(lambda x: "น้อยกว่า 63" if x < 63 else "มากกว่า 63")
             return grouped
 
+        # คำนวณการจำแนกประเภทเส้นผ่านศูนย์กลาง
+        summary_df = calculate_diameter_class(df_tags_match, df_not_match)
+
         # สรุปข้อมูลตามเขต กฟภ.
         def summarize_by_area(summary_df):
             summary = summary_df.groupby("พื้นที่รับผิดชอบของ กฟภ.")["ประเภท"].value_counts().unstack(fill_value=0)
             summary = summary.rename(columns={"น้อยกว่า 63": "จำนวน_tag_น้อยกว่า_63", "มากกว่า 63": "จำนวน_tag_มากกว่า_63"})
             summary["จำนวน_tag"] = summary["จำนวน_tag_น้อยกว่า_63"] + summary["จำนวน_tag_มากกว่า_63"]
-
-            # แปลงคอลัมน์ให้เป็นชนิดข้อมูลที่ถูกต้อง
-            summary["จำนวน_tag_น้อยกว่า_63"] = pd.to_numeric(summary["จำนวน_tag_น้อยกว่า_63"], errors='coerce').fillna(0).astype(int)
-            summary["จำนวน_tag_มากกว่า_63"] = pd.to_numeric(summary["จำนวน_tag_มากกว่า_63"], errors='coerce').fillna(0).astype(int)
-            summary["จำนวน_tag"] = pd.to_numeric(summary["จำนวน_tag"], errors='coerce').fillna(0).astype(int)
 
             # คำนวณค่าพาดสายประจำปี
             summary["ค่าพาดสายประจำปี"] = (summary["จำนวน_tag_น้อยกว่า_63"] * 55) + (summary["จำนวน_tag_มากกว่า_63"] * 100)
@@ -171,8 +169,6 @@ if uploaded_file:
         with pd.ExcelWriter(output_file) as writer:
             df_tags_match.to_excel(writer, sheet_name="ตรงกัน", index=False)
             df_tags_not_match.to_excel(writer, sheet_name="ไม่ตรงกัน", index=False)
-            df_combined = pd.concat([df_tags_match, df_tags_not_match])
-            df_combined.to_excel(writer, sheet_name="รวม", index=False)
             summary_df.to_excel(writer, sheet_name="ผลรวมเส้นผ่านศูนย์กลาง", index=False)
             summarized_area_df.to_excel(writer, sheet_name="ผลรวมตามเขต กฟภ.", index=False)
 
