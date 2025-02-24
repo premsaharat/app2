@@ -25,6 +25,14 @@ def clip_and_combine(input_kml, boundary_polygon, output_kml):
         for placemark in placemarks_to_remove:
             placemark.getparent().remove(placemark)
 
+        # Set the name within the KML content
+        document_elem = root.find(".//{http://www.opengis.net/kml/2.2}Document")
+        if document_elem is not None:
+            name_elem = document_elem.find(".//{http://www.opengis.net/kml/2.2}name")
+            if name_elem is None:
+                name_elem = etree.SubElement(document_elem, "name")
+            name_elem.text = os.path.basename(output_kml)
+
         tree.write(output_kml, encoding="utf-8", xml_declaration=True)
         return output_kml
     except Exception as e:
@@ -57,10 +65,14 @@ def process_areas_with_red(input_kml, boundary_kml):
     return output_files
 
 # ฟังก์ชันรวมไฟล์ KML
-def combine_kml_files(output_files, boundary_name):
+def combine_kml_files(output_files):
     combined_output_kml = tempfile.NamedTemporaryFile(delete=False, suffix='.kml')
     kml_elem = etree.Element("kml", xmlns="http://www.opengis.net/kml/2.2")
     document_elem = etree.SubElement(kml_elem, "Document")
+
+    # Add a name element to the KML document
+    name_elem = etree.SubElement(document_elem, "name")
+    name_elem.text = "Combined KML File"
 
     for file in output_files:
         try:
@@ -73,7 +85,7 @@ def combine_kml_files(output_files, boundary_name):
 
     combined_tree = etree.ElementTree(kml_elem)
     combined_tree.write(combined_output_kml.name, encoding="utf-8", xml_declaration=True)
-    return combined_output_kml.name, f"{boundary_name}_combined.kml"
+    return combined_output_kml.name  
 
 # ฟังก์ชันสร้างไฟล์ ZIP
 def create_zip_for_download(output_files):
@@ -162,13 +174,12 @@ def main():
                         output_files = process_areas_with_red(input_path, boundary_path)
 
                     if output_files:
-                        boundary_name = os.path.splitext(os.path.basename(boundary_file.name))[0]
-                        combined_kml, combined_kml_name = combine_kml_files(output_files, boundary_name)
+                        combined_kml = combine_kml_files(output_files)
                         with open(combined_kml, "rb") as f:
                             st.download_button(
                                 label="🔗 ดาวน์โหลดไฟล์ KML รวม",
                                 data=f,
-                                file_name=combined_kml_name,
+                                file_name="combined_output.kml",
                                 mime="application/vnd.google-earth.kml+xml"
                             )
                 finally:
