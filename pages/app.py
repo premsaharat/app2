@@ -107,7 +107,7 @@ def convert_missing_coords_to_kml(additional_coords_str, status_text, descriptio
             additional_coords = parse_multiple_coordinates(additional_coords_str)
 
             # ✅ สร้างเส้น (LineString) ในโฟลเดอร์หลัก
-            linestring_name = f"{description_dict.get('ชื่อชุมสาย')} {description_dict.get('id', '')}"
+            linestring_name = f"{description_dict.get('ชื่อชุมสาย', '')} {description_dict.get('id', '')}"
             linestring = main_folder.newlinestring(name=linestring_name)
             linestring.coords = additional_coords
             linestring.style.linestyle.color = simplekml.Color.blue
@@ -129,7 +129,9 @@ def convert_missing_coords_to_kml(additional_coords_str, status_text, descriptio
 
         # ✅ ใช้โฟลเดอร์ชั่วคราวแทน `/tmp/`
         temp_dir = tempfile.gettempdir()
-        output_filename = "missing_coords.kml"
+        output_filename = f"{description_dict.get('id', 'missing_coords')}.kml"
+        if not description_dict.get('id'):
+            output_filename = "missing_coords.kml"
         temp_file_path = os.path.join(temp_dir, output_filename)
 
         # ✅ บันทึกไฟล์ KML ลงโฟลเดอร์ชั่วคราว
