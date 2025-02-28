@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+import xml.etree.ElementTree as ET
 
 # Initialize session state for theme if not exists
 if 'theme' not in st.session_state:
@@ -142,8 +143,22 @@ with st.sidebar:
     with col2:
         st.metric("ผู้ใช้งานออนไลน์", "23", "+5")
 
+# Function to count lines in KML file
+def count_lines_in_kml(kml_file):
+    tree = ET.parse(kml_file)
+    root = tree.getroot()
+    namespace = {'kml': 'http://www.opengis.net/kml/2.2'}
+    lines = root.findall('.//kml:LineString', namespace)
+    return len(lines)
+
 # Main content
 st.title("🔄 File Converter Hub")
+
+# KML file upload
+uploaded_kml = st.file_uploader("ตรวจสอบจำนวนเส้นทั้งหมดในไฟล์ KML", type=["kml"])
+if uploaded_kml is not None:
+    num_lines = count_lines_in_kml(uploaded_kml)
+    st.success(f"ไฟล์ KML นี้มี {num_lines} เส้น")
 
 # Search functionality
 search = st.text_input("🔍 ค้นหาเครื่องมือ...", placeholder="พิมพ์ชื่อเครื่องมือที่ต้องการ...")
