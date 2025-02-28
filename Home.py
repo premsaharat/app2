@@ -155,7 +155,7 @@ def count_lines_in_kml(kml_file):
 st.title("🔄 File Converter Hub")
 
 # KML file upload
-uploaded_kml = st.file_uploader("ตรวจสอบจำนวนเส้นทั้งหมดในไฟล์ KML", type=["kml"])
+uploaded_kml = st.file_uploader("🔍 ตรวจสอบและนับเส้นทางทั้งหมดในไฟล์ KML ของคุณ!", type=["kml"])
 if uploaded_kml is not None:
     num_lines = count_lines_in_kml(uploaded_kml)
     st.success(f"ไฟล์ KML นี้มี {num_lines} เส้น")
