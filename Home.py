@@ -142,13 +142,7 @@ with st.sidebar:
         st.metric("การแปลงวันนี้", "150", "+12")
     with col2:
         st.metric("ผู้ใช้งานออนไลน์", "23", "+5")
-# 🔹 กำหนด Mapping ระหว่างชื่อไฟล์จริงกับชื่อที่ต้องการแสดง
-file_name_mapping = {
-    "app": "Excel to KML",
-    "appssss": "KML to Excel",
-    "appppp": "สร้างเส้นซ้อน",
-    "appsssss": "ตัดพื้นที่"
-}
+
 # Function to count lines in KML file
 def count_lines_in_kml(kml_file):
     tree = ET.parse(kml_file)
