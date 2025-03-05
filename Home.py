@@ -198,14 +198,14 @@ tools = [
         #"title": "คำนวณค่าพาดสายประจำปี",
         #"description": "วิเคราะห์ค่าพาดสายประจำปีจากไฟล์ Excel",
         #"usage_count": 325,
-        #"page": "pages/calculate-annual-line-values.py"
+        #"page": "pages/calculate-annual-fee.py"
     #},
     {
         "icon": "🗺️",
         "title": "KML TO TAG",
         "description": "กรองข้อมูล KML ตาม tags ที่กำหนด รองรับไฟล์ KML และ ZIP",
         "usage_count": 289,
-        "page": "pages/kml-to-tag.py"
+        "page": "pages/kml-by-tag.py"
     }
 ]
 
