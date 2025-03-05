@@ -49,7 +49,7 @@ def apply_theme(theme_name):
 
 # Page config
 st.set_page_config(
-    page_title="File Converter Hub",
+    page_title="โปรแกรม จัดการข้อมูลสายสื่อสาร",
     page_icon="🔄",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -152,7 +152,7 @@ def count_lines_in_kml(kml_file):
     return len(lines)
 
 # Main content
-st.title("🔄 File Converter Hub")
+st.title("🔄 โปรแกรม จัดการข้อมูลสายสื่อสาร")
 
 # KML file upload
 uploaded_kml = st.file_uploader("🔍 ตรวจสอบและนับเส้นทางทั้งหมดในไฟล์ KML ของคุณ!", type=["kml"])
@@ -260,6 +260,6 @@ for i in range(0, len(filtered_tools), 2):
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666;">
-    <p>© 2024 File Converter Hub. พัฒนาด้วย ❤️ เพื่อผู้ใช้งานทุกท่าน</p>
+    <p>© 2024 โปรแกรม จัดการข้อมูลสายสื่อสาร. พัฒนาด้วย ❤️ เพื่อผู้ใช้งานทุกท่าน</p>
 </div>
 """, unsafe_allow_html=True)
