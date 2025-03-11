@@ -212,63 +212,6 @@ def remove_placemarks_not_in_excel(kml_tree, excel_df):
     status_text.text(f"ลบหมุดที่ไม่พบใน Excel แล้ว {removed_count} รายการจากทั้งหมด {total_placemarks} รายการ")
     return kml_tree, removed_count
 
-# ฟังก์ชั่นใหม่สำหรับลบเฉพาะหมุดที่ไม่มีข้อมูลใน Excel
-def remove_points_not_in_excel(kml_tree, excel_df):
-    root = kml_tree.getroot()
-    
-    # หา namespace ของ KML
-    nsmap = root.nsmap
-    kml_ns = '{' + nsmap.get(None, 'http://www.opengis.net/kml/2.2') + '}'
-    
-    # ค้นหา Placemarks ทั้งหมด
-    placemarks = root.findall('.//' + kml_ns + 'Placemark')
-    
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    total_placemarks = len(placemarks)
-    removed_count = 0
-    
-    # รายการของ placemarks ที่จะลบ (เราไม่สามารถลบในระหว่างการวนลูปได้)
-    placemarks_to_remove = []
-    
-    # สร้างชุดของชื่อใน Excel เพื่อการค้นหาที่เร็วขึ้น
-    excel_names = set(excel_df['Cable Name'].astype(str).values)
-    
-    for i, placemark in enumerate(placemarks):
-        # อัพเดท progress bar
-        progress_bar.progress(int((i + 1) / total_placemarks * 100))
-        status_text.text(f"กำลังตรวจสอบหมุด... {i+1}/{total_placemarks}")
-        
-        # หาชื่อของ placemark
-        name_elem = placemark.find(kml_ns + 'name')
-        if name_elem is None:
-            continue
-        
-        placemark_name = name_elem.text
-        
-        # ตรวจสอบประเภทของ Placemark (Point หรือ LineString)
-        is_point = False
-        geometry = placemark.find('.//' + kml_ns + 'Point')
-        
-        # ถ้าเป็น Point (หมุด) ให้ตรวจสอบว่ามีในไฟล์ Excel หรือไม่
-        if geometry is not None:
-            is_point = True
-            
-            # ถ้าเป็นหมุดและไม่มีใน Excel ให้เพิ่มเข้ารายการที่จะลบ
-            if placemark_name not in excel_names:
-                placemarks_to_remove.append(placemark)
-                removed_count += 1
-    
-    # ลบเฉพาะ placemark ที่เป็นหมุดและไม่พบใน Excel
-    for placemark in placemarks_to_remove:
-        parent = placemark.getparent()
-        if parent is not None:
-            parent.remove(placemark)
-    
-    status_text.text(f"ลบหมุด (จุด) ที่ไม่พบใน Excel แล้ว {removed_count} รายการ")
-    return kml_tree, removed_count
-
 # 5. เพิ่มฟังก์ชั่นจัดกลุ่มและจัดการสีตามประเภท Cable
 def style_placemarks_by_type(kml_tree, excel_df, style_column='Type'):
     if style_column not in excel_df.columns:
@@ -389,20 +332,12 @@ def main():
         output_filename = st.text_input("ชื่อไฟล์ผลลัพธ์", "output_updated.kml")
         
         # ตัวเลือกเพิ่มเติม
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         
         with col1:
-            remove_points = st.checkbox("🔹 ลบเฉพาะหมุด (จุด) ที่ไม่พบในไฟล์ Excel")
+            remove_points = st.checkbox("🔹 ลบหมุดและเส้นที่ไม่พบในไฟล์ Excel")
         
         with col2:
-            remove_all_placemarks = st.checkbox("🔹 ลบทั้งหมด (หมุดและเส้น) ที่ไม่พบในไฟล์ Excel")
-            
-            # ป้องกันการเลือกทั้งสองตัวเลือกพร้อมกัน
-            if remove_all_placemarks and remove_points:
-                remove_points = False
-                st.warning("คุณไม่สามารถเลือกทั้งสองตัวเลือกการลบพร้อมกันได้")
-        
-        with col3:
             style_by_type = st.checkbox("🔹 จัดกลุ่มและกำหนดสีตามประเภท")
         
         if style_by_type:
@@ -428,16 +363,10 @@ def main():
                         # อัพเดทข้อมูล
                         updated_kml, updated_count = update_kml_with_excel_data(kml_tree, excel_df)
                         
-                        # ถ้าผู้ใช้เลือกลบหมุด (จุด) ที่ไม่พบในไฟล์ Excel
+                        # ถ้าผู้ใช้เลือกลบหมุดที่ไม่พบในไฟล์ Excel
                         removed_count = 0
-                        removed_all_count = 0
-                        
                         if remove_points:
-                            updated_kml, removed_count = remove_points_not_in_excel(updated_kml, excel_df)
-                        
-                        # ถ้าผู้ใช้เลือกลบทั้งหมดที่ไม่พบในไฟล์ Excel
-                        elif remove_all_placemarks:
-                            updated_kml, removed_all_count = remove_placemarks_not_in_excel(updated_kml, excel_df)
+                            updated_kml, removed_count = remove_placemarks_not_in_excel(updated_kml, excel_df)
                         
                         # ถ้าผู้ใช้เลือกจัดกลุ่มตามประเภท
                         style_result = ""
@@ -451,10 +380,8 @@ def main():
                         
                         # สร้างลิงก์ดาวน์โหลด
                         success_msg = f"✅ อัพเดทข้อมูลเรียบร้อยแล้ว {updated_count} รายการ"
-                        if remove_points and removed_count > 0:
-                            success_msg += f"\n✅ ลบเฉพาะหมุด (จุด) ที่ไม่พบในไฟล์ Excel {removed_count} รายการ"
-                        elif remove_all_placemarks and removed_all_count > 0:
-                            success_msg += f"\n✅ ลบทั้งหมด (หมุดและเส้น) ที่ไม่พบในไฟล์ Excel {removed_all_count} รายการ"
+                        if remove_points:
+                            success_msg += f"\n✅ ลบหมุดและเส้นที่ไม่พบในไฟล์ Excel {removed_count} รายการ"
                         if style_by_type and style_result:
                             success_msg += f"\n✅ {style_result}"
                         
@@ -473,7 +400,7 @@ def main():
         2. อัพโหลดไฟล์ Excel ที่มีข้อมูลสำหรับอัพเดท
         3. ตั้งชื่อไฟล์ผลลัพธ์ที่ต้องการ
         4. เลือกตัวเลือกเพิ่มเติมตามต้องการ:
-           - ลบหมุดที่ไม่พบในไฟล์ Excel
+           - ลบหมุดและเส้นที่ไม่พบในไฟล์ Excel
            - จัดกลุ่มและกำหนดสีตามประเภท
         5. กดปุ่ม "ประมวลผล"
         6. ดาวน์โหลดไฟล์ KML ที่อัพเดทแล้ว
