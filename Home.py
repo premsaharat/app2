@@ -1,6 +1,7 @@
 import streamlit as st
 import time
 import xml.etree.ElementTree as ET
+import os
 
 # Initialize session state for theme if not exists
 if 'theme' not in st.session_state:
@@ -110,6 +111,72 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# Tools data - with consistent page paths
+tools = [
+    {
+        "icon": "📊",
+        "title": "Excel to KML",
+        "description": "แปลงไฟล์ Excel เป็น KML สำหรับแสดงข้อมูลบน Google Earth (NTSP)",
+        "usage_count": 1234,
+        "page": "pages/excel-to-kml.py"
+    },
+    {
+        "icon": "📑",
+        "title": "KML to Excel",
+        "description": "แปลงไฟล์ KML เป็น Excel เพื่อจัดการข้อมูลได้ง่ายขึ้น",
+        "usage_count": 987,
+        "page": "pages/kml-to-excel.py"
+    },
+    {
+        "icon": "〽️",
+        "title": "สร้างเส้นซ้อน",
+        "description": "สร้างและแก้ไขเส้นซ้อนบนแผนที่แบบอัตโนมัติ",
+        "usage_count": 756,
+        "page": "pages/create-overlay-lines.py"
+    },
+    {
+        "icon": "✂️",
+        "title": "ตัดพื้นที่",
+        "description": "ตัดพื้นที่ตามขอบเขตที่กำหนดอย่างแม่นยำ",
+        "usage_count": 543,
+        "page": "pages/cut-area.py"
+    },
+    {
+        "icon": "📊",
+        "title": "คำนวณค่าพาดสายประจำปี",
+        "description": "วิเคราะห์ค่าพาดสายประจำปีจากไฟล์ Excel",
+        "usage_count": 325,
+        "page": "pages/calculate-annual-fee.py"
+    },
+    {
+        "icon": "🗺️",
+        "title": "KML TO TAG",
+        "description": "กรองข้อมูล KML ตาม tags ที่กำหนด รองรับไฟล์ KML และ ZIP",
+        "usage_count": 289,
+        "page": "pages/kml-by-tag.py"
+    },
+    {
+        "icon": "🌍",
+        "title": "ปรับข้อมูล KML จาก FINOC",
+        "description": "อัพเดทข้อมูลใน KML โดยใช้ข้อมูลจากไฟล์ Excel",
+        "usage_count": 121,
+        "page": "pages/kml-finoc.py"  # Corrected path
+    },
+]
+
+# Function to verify if all page files exist
+def verify_pages():
+    missing_pages = []
+    for tool in tools:
+        if not os.path.exists(tool['page']):
+            missing_pages.append(tool['title'])
+    
+    if missing_pages:
+        st.warning(f"ไม่พบไฟล์หน้าต่อไปนี้: {', '.join(missing_pages)}")
+
+# Run the verification
+verify_pages()
+
 # Sidebar with user guide and settings
 with st.sidebar:
     st.title("⚙️ การตั้งค่า")
@@ -163,59 +230,6 @@ if uploaded_kml is not None:
 # Search functionality
 search = st.text_input("🔍 ค้นหาเครื่องมือ...", placeholder="พิมพ์ชื่อเครื่องมือที่ต้องการ...")
 
-# Tools data
-tools = [
-    {
-        "icon": "📊",
-        "title": "Excel to KML",
-        "description": "แปลงไฟล์ Excel เป็น KML สำหรับแสดงข้อมูลบน Google Earth (NTSP)",
-        "usage_count": 1234,
-        "page": "pages/excel-to-kml.py"
-    },
-    {
-        "icon": "📑",
-        "title": "KML to Excel",
-        "description": "แปลงไฟล์ KML เป็น Excel เพื่อจัดการข้อมูลได้ง่ายขึ้น",
-        "usage_count": 987,
-        "page": "pages/kml-to-excel.py"
-    },
-    {
-        "icon": "〽️",
-        "title": "สร้างเส้นซ้อน",
-        "description": "สร้างและแก้ไขเส้นซ้อนบนแผนที่แบบอัตโนมัติ",
-        "usage_count": 756,
-        "page": "pages/create-overlay-lines.py"
-    },
-    {
-        "icon": "✂️",
-        "title": "ตัดพื้นที่",
-        "description": "ตัดพื้นที่ตามขอบเขตที่กำหนดอย่างแม่นยำ",
-        "usage_count": 543,
-        "page": "pages/cut-area.py"
-    },
-    {
-        "icon": "📊",
-        "title": "คำนวณค่าพาดสายประจำปี",
-        "description": "วิเคราะห์ค่าพาดสายประจำปีจากไฟล์ Excel",
-        "usage_count": 325,
-        "page": "pages/calculate-annual-fee.py"
-    },
-    {
-        "icon": "🗺️",
-        "title": "KML TO TAG",
-        "description": "กรองข้อมูล KML ตาม tags ที่กำหนด รองรับไฟล์ KML และ ZIP",
-        "usage_count": 289,
-        "page": "pages/kml-by-tag.py"
-    },
-       {
-    "icon": "🌍",
-    "title": "ปรับข้อมูล KML จาก FINOC",
-    "description": "อัพเดทข้อมูลใน KML โดยใช้ข้อมูลจากไฟล์ Excel",
-    "usage_count": 121,
-    "page": "kml-finoc.py"  
-}
-]
-
 # Filter tools based on search
 if search:
     filtered_tools = [tool for tool in tools if search.lower() in tool['title'].lower() or search.lower() in tool['description'].lower()]
@@ -242,7 +256,14 @@ for i in range(0, len(filtered_tools), 2):
         if st.button(f"เปิดใช้งาน {tool['title']}", key=f"btn{i+1}"):
             with st.spinner("กำลังโหลด..."):
                 time.sleep(0.5)
-                st.switch_page(tool['page'])
+                try:
+                    # Make sure the path is correct
+                    page_path = tool['page']
+                    if not page_path.startswith("pages/") and "." in page_path:
+                        page_path = "pages/" + page_path
+                    st.switch_page(page_path)
+                except Exception as e:
+                    st.error(f"ไม่สามารถเปิดหน้า {tool['title']} ได้: {str(e)}")
     
     # Second column (if available)
     with col2:
@@ -261,7 +282,14 @@ for i in range(0, len(filtered_tools), 2):
             if st.button(f"เปิดใช้งาน {tool['title']}", key=f"btn{i+2}"):
                 with st.spinner("กำลังโหลด..."):
                     time.sleep(0.5)
-                    st.switch_page(tool['page'])
+                    try:
+                        # Make sure the path is correct
+                        page_path = tool['page']
+                        if not page_path.startswith("pages/") and "." in page_path:
+                            page_path = "pages/" + page_path
+                        st.switch_page(page_path)
+                    except Exception as e:
+                        st.error(f"ไม่สามารถเปิดหน้า {tool['title']} ได้: {str(e)}")
 
 # Footer
 st.markdown("---")
