@@ -213,7 +213,7 @@ tools = [
         "description": "อัพเดทข้อมูลใน KML โดยใช้ข้อมูลจากไฟล์ Excel",
         "usage_count": 121,
         "page": "kml-finoc.py"
-    },
+    }
 ]
 
 # Filter tools based on search
