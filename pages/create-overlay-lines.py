@@ -12,17 +12,28 @@ st.markdown("""
 <style>
     /* ตั้งค่าสีหลักสำหรับทั้งโหมดมืดและสว่าง */
     :root {
-        --bg-primary: #121212;
-        --bg-secondary: #1e1e1e;
-        --bg-tertiary: #2a2a2a;
-        --text-primary: #e0e0e0;
-        --text-secondary: #b0b0b0;
+        --bg-primary: #ffffff;
+        --bg-secondary: #f0f0f0;
+        --bg-tertiary: #e0e0e0;
+        --text-primary: #000000;
+        --text-secondary: #333333;
         --accent-primary: #4f8bf9;
         --accent-secondary: #3776cc;
         --success-color: #1db954;
         --warning-color: #ff9800;
         --error-color: #f44336;
-        --border-color: #444444;
+        --border-color: #cccccc;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-primary: #121212;
+            --bg-secondary: #1e1e1e;
+            --bg-tertiary: #2a2a2a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --border-color: #444444;
+        }
     }
     
     /* สไตล์หลัก */
