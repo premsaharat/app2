@@ -6,3 +6,4 @@ lxml
 shapely
 beautifulsoup4
 geopandas
+xlsxwriter
