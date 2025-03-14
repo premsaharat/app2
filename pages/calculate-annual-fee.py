@@ -195,39 +195,87 @@ if uploaded_file:
                 
                 st.info(f"มีเพียงเขตการไฟฟ้าเดียว ({area}) จำนวนเสา(ต้น)ในพื้นที่: {poles_in_area} ต้น")
                 
-                # ให้ผู้ใช้เลือกลำดับการเรียง tag
-                tag_order = st.radio(
-                    "เลือกลำดับการจัดสรร tag:",
-                    ["ต้นทาง", "ปลายทาง"],
-                    key=f"tag_order_{comm_tag}"
+                # ให้ผู้ใช้เลือกวิธีการจัดสรร tag
+                tag_selection_method = st.radio(
+                    "เลือกวิธีการจัดสรร tag:",
+                    ["ต้นทาง", "ปลายทาง", "ระบุเอง"],
+                    key=f"tag_selection_method_{comm_tag}"
                 )
                 
-                # จำนวน tag ที่จะเลือก
-                num_tags_to_select = min(int(poles_in_area), len(all_unique_tags))
+                proceed_with_assignment = True  # ตัวแปรควบคุมการประมวลผลต่อ
                 
-                # เลือก tag ตามลำดับที่ผู้ใช้เลือก
-                if tag_order == "ต้นทาง":
-                    selected_tags = all_unique_tags[:num_tags_to_select]
-                else:  # จากท้ายรายการ
-                    selected_tags = all_unique_tags[-num_tags_to_select:]
+                if tag_selection_method == "ระบุเอง":
+                    # ให้ผู้ใช้ใส่ tag เอง
+                    custom_tags_input = st.text_area(
+                        f"ระบุ tag ที่ต้องการจัดสรรให้ {area} (คั่นด้วยเครื่องหมายคอมม่า ,)",
+                        value="",
+                        height=150,
+                        key=f"custom_tags_{comm_tag}_{area}"
+                    )
+                    
+                    # แปลงข้อความที่ผู้ใช้ใส่เป็นรายการ tag
+                    if custom_tags_input.strip():
+                        selected_tags = [tag.strip() for tag in custom_tags_input.split(",") if tag.strip()]
+                        
+                        # ตรวจสอบว่า tag ที่ใส่มาอยู่ใน all_unique_tags หรือไม่
+                        invalid_tags = [tag for tag in selected_tags if tag not in all_unique_tags]
+                        if invalid_tags:
+                            st.error(f"พบ tag ที่ไม่อยู่ในรายการ: {', '.join(invalid_tags)}")
+                            proceed_with_assignment = False
+                        
+                        # ตรวจสอบว่าจำนวน tag ต้องเท่ากับจำนวนเสาพอดี
+                        if len(selected_tags) != poles_in_area:
+                            st.error(f"จำนวน tag ต้องเท่ากับจำนวนเสาในพื้นที่ ({poles_in_area} ต้น) เท่านั้น แต่ที่ระบุมามีจำนวน {len(selected_tags)} tag")
+                            proceed_with_assignment = False
+                    else:
+                        selected_tags = []
+                        st.error("กรุณาระบุ tag ให้ครบตามจำนวนเสา")
+                        proceed_with_assignment = False
+                        
+                else:
+                    # จำนวน tag ที่จะเลือก
+                    num_tags_to_select = min(int(poles_in_area), len(all_unique_tags))
+                    
+                    # ตรวจสอบว่ามี tag เพียงพอหรือไม่
+                    if num_tags_to_select < poles_in_area:
+                        st.error(f"มี tag ไม่เพียงพอสำหรับจำนวนเสาในพื้นที่ ({poles_in_area} ต้น) มี tag เพียง {len(all_unique_tags)} tag")
+                        proceed_with_assignment = False
+                    
+                    # เลือก tag ตามลำดับที่ผู้ใช้เลือก
+                    if tag_selection_method == "ต้นทาง":
+                        selected_tags = all_unique_tags[:num_tags_to_select]
+                    else:  # จากท้ายรายการ
+                        selected_tags = all_unique_tags[-num_tags_to_select:]
                 
-                # แสดงตัวอย่าง tag ที่เลือก
-                st.write(f"จัดสรร {len(selected_tags)} tag จาก {len(all_unique_tags)} tag ให้กับ {area}")
-                st.text_area(
-                    f"tag ที่จัดสรรให้ {area}",
-                    ", ".join(selected_tags),
-                    height=100,
-                    key=f"tags_{comm_tag}_{area}"
-                )
-                
-                # เก็บผลการจัดสรร
-                tag_assignments[comm_tag] = {area: selected_tags}
+                # แสดงผลลัพธ์และประมวลผลต่อเฉพาะเมื่อเงื่อนไขถูกต้อง
+                if proceed_with_assignment and selected_tags:
+                    # แสดงตัวอย่าง tag ที่เลือก
+                    st.write(f"จัดสรร {len(selected_tags)} tag จาก {len(all_unique_tags)} tag ให้กับ {area}")
+                    st.text_area(
+                        f"tag ที่จัดสรรให้ {area}",
+                        ", ".join(selected_tags),
+                        height=100,
+                        key=f"selected_tags_{comm_tag}_{area}",
+                        disabled=True
+                    )
+                    
+                    # เพิ่มปุ่มยืนยันการจัดสรร
+                    if st.button(f"ยืนยันการจัดสรร tag สำหรับ {area}", key=f"confirm_{comm_tag}_{area}"):
+                        st.success(f"จัดสรร tag สำหรับ {area} เรียบร้อยแล้ว")
+                        # เก็บผลการจัดสรร
+                        tag_assignments[comm_tag] = {area: selected_tags}
+                    else:
+                        # ยังไม่ยืนยัน ใส่ค่าว่างไว้ก่อน
+                        tag_assignments[comm_tag] = {area: []}
+                else:
+                    # กรณีข้อมูลไม่ถูกต้อง
+                    tag_assignments[comm_tag] = {area: []}
             else:
                 st.warning(f"มีเพียงเขตการไฟฟ้าเดียว ({area}) แต่ไม่มี tag เสาไฟฟ้าที่ผ่าน")
                 tag_assignments[comm_tag] = {area: []}
             
             return tag_assignments
-
+        
         def handle_multiple_areas_case(comm_tag, unique_areas, area_details, all_unique_tags, df_match):
             """
             จัดการกรณีที่มีหลายพื้นที่
@@ -343,53 +391,101 @@ if uploaded_file:
 
         def handle_manual_assignment(comm_tag, unique_areas, area_details, all_unique_tags):
             """
-            จัดการกรณีที่ต้องให้ผู้ใช้กำหนดลำดับเอง
+            จัดการกรณีที่ต้องให้ผู้ใช้กำหนดลำดับเอง โดยใช้ session state
+            และมีปุ่มยืนยันเพียงปุ่มเดียวต่อกลุ่ม
             """
-            st.write("กำหนดลำดับพื้นที่สำหรับการจัดสรร tag เสาไฟฟ้าด้วยตนเอง:")
-            area_order = {}
-            cols = st.columns(len(unique_areas))
-            for i, area in enumerate(unique_areas):
-                with cols[i]:
-                    area_order[area] = st.number_input(
-                        f"{area}", 
-                        min_value=1, 
-                        max_value=len(unique_areas), 
-                        value=i+1,
-                        key=f"order_{comm_tag}_{area}"
-                    )
+            # สร้าง key สำหรับ session state
+            ss_key = f"order_data_{comm_tag}"
+            result_key = f"result_{comm_tag}"
             
-            # จัดเรียงพื้นที่ตามลำดับที่ผู้ใช้กำหนด
-            sorted_areas = sorted(area_order.keys(), key=lambda x: area_order[x])
+            # เริ่มต้นค่าใน session state ถ้ายังไม่มี
+            if ss_key not in st.session_state:
+                st.session_state[ss_key] = {area: i + 1 for i, area in enumerate(unique_areas)}
             
-            # แสดงลำดับการจัดสรร
-            st.write("**ลำดับการจัดสรร tag:**")
-            for i, area in enumerate(sorted_areas, 1):
-                area_index = list(unique_areas).index(area)
-                detail = area_details[area_index]
-                st.write(f"{i}. {area}: {detail['poles_in_area']} ต้น")
+            if result_key not in st.session_state:
+                st.session_state[result_key] = None
             
-            # การจัดสรร tag ตามลำดับที่กำหนด
-            tag_assignments = {comm_tag: {area: [] for area in unique_areas}}
-            remaining_tags = all_unique_tags.copy()
+            st.write(f"กำหนดลำดับพื้นที่สำหรับการจัดสรร tag เสาไฟฟ้าสำหรับ: {comm_tag}")
             
-            # จัดสรร tag ตามลำดับที่ผู้ใช้กำหนด
-            for area in sorted_areas:
-                area_index = list(unique_areas).index(area)
-                detail = area_details[area_index]
-                poles_needed = detail["poles_in_area"]
-                if poles_needed <= len(remaining_tags):
-                    assigned_tags = remaining_tags[:int(poles_needed)]
-                    tag_assignments[comm_tag][area] = assigned_tags
-                    remaining_tags = [tag for tag in remaining_tags if tag not in assigned_tags]
-                else:
-                    tag_assignments[comm_tag][area] = remaining_tags
-                    remaining_tags = []
+            # สร้าง UI สำหรับกำหนดลำดับด้วยฟอร์มเดียว
+            with st.form(key=f"order_form_{comm_tag}"):
+                # แสดง input สำหรับแต่ละพื้นที่ในคอลัมน์
+                cols = st.columns(len(unique_areas))
+                order_values = {}
+                
+                for i, area in enumerate(unique_areas):
+                    with cols[i]:
+                        # เก็บค่าจาก number_input
+                        order_values[area] = st.number_input(
+                            f"{area}",
+                            min_value=1,
+                            max_value=len(unique_areas),
+                            value=st.session_state[ss_key][area],
+                            key=f"input_{comm_tag}_{area}"
+                        )
+                
+                # ปุ่มยืนยันเพียงปุ่มเดียว
+                submit_button = st.form_submit_button(label="ยืนยันการจัดลำดับ")
+                
+                # ประมวลผลเมื่อกดปุ่มยืนยันเท่านั้น
+                if submit_button:
+                    # อัปเดต session state ด้วยค่าที่ผู้ใช้ป้อน
+                    st.session_state[ss_key] = order_values
+                    
+                    # จัดเรียงพื้นที่ตามลำดับที่ผู้ใช้กำหนด
+                    sorted_areas = sorted(unique_areas, key=lambda x: st.session_state[ss_key][x])
+                    
+                    # การจัดสรร tag ตามลำดับที่กำหนด
+                    tag_assignments = {comm_tag: {area: [] for area in unique_areas}}
+                    remaining_tags = all_unique_tags.copy()
+                    
+                    for area in sorted_areas:
+                        area_index = list(unique_areas).index(area)
+                        detail = area_details[area_index]
+                        poles_needed = detail["poles_in_area"]
+                        if poles_needed <= len(remaining_tags):
+                            assigned_tags = remaining_tags[:int(poles_needed)]
+                            tag_assignments[comm_tag][area] = assigned_tags
+                            remaining_tags = [tag for tag in remaining_tags if tag not in assigned_tags]
+                        else:
+                            tag_assignments[comm_tag][area] = remaining_tags
+                            remaining_tags = []
+                    
+                    # เก็บผลลัพธ์ใน session state
+                    st.session_state[result_key] = {
+                        "sorted_areas": sorted_areas,
+                        "tag_assignments": tag_assignments
+                    }
             
-            # แสดงผลการจัดสรร
-            display_tag_assignment_results(sorted_areas, tag_assignments, comm_tag)
+            # แสดงผลการจัดสรรเมื่อมีข้อมูลใน session state
+            if st.session_state[result_key]:
+                sorted_areas = st.session_state[result_key]["sorted_areas"]
+                tag_assignments = st.session_state[result_key]["tag_assignments"]
+                
+                st.write("**ลำดับการจัดสรร tag:**")
+                for i, area in enumerate(sorted_areas, 1):
+                    area_index = list(unique_areas).index(area)
+                    detail = area_details[area_index]
+                    st.write(f"{i}. {area}: {detail['poles_in_area']} ต้น")
+                
+                st.write("**การจัดสรร tag เสาไฟฟ้า:**")
+                for area in sorted_areas:
+                    assigned = tag_assignments[comm_tag][area]
+                    st.write(f"{area}: {len(assigned)} tag")
+                    if assigned:
+                        st.text_area(
+                            f"tag ที่จัดสรรให้ {area}",
+                            ", ".join(assigned),
+                            height=100,
+                            key=f"tags_{comm_tag}_{area}",
+                            disabled=True
+                        )
+                
+                return tag_assignments
             
-            return tag_assignments
-
+            # คืนค่าเริ่มต้นถ้ายังไม่มีการยืนยัน
+            return {comm_tag: {area: [] for area in unique_areas}}
+        
         def display_tag_assignment_results(sorted_areas, tag_assignments, comm_tag):
             """
             แสดงผลการจัดสรร tag
@@ -406,8 +502,6 @@ if uploaded_file:
                         key=f"tags_{comm_tag}_{area}"
                     )
 
-        # เพิ่มฟังก์ชันใหม่สำหรับการจัดกลุ่ม tag
-# แก้ไขในฟังก์ชัน group_comm_tags_by_case
         def group_comm_tags_by_case(df_not_match, df_match):
             unique_comm_tags = df_not_match["tag ของสายสื่อสาร"].unique()
             
@@ -468,7 +562,7 @@ if uploaded_file:
             
             return tag_groups
 
-        # ในส่วนที่เกี่ยวกับการแสดงผล tag สายสื่อสาร แทนที่โค้ดเดิมด้วยโค้ดต่อไปนี้
+        # ในส่วนที่เกี่ยวกับการแสดงผล tag สายสื่อสาร
         if len(df_not_match) > 0:
             st.subheader("🔍 วิเคราะห์ข้อมูลสายสื่อสารที่ไม่ตรงกัน")
             
@@ -490,34 +584,42 @@ if uploaded_file:
                 [tag_groups["found_tag"], tag_groups["not_found_tag"], tag_groups["more_than_two_areas"], tag_groups["single_area"]]
             )):
                 with tab:
-                    if len(group_tags) > 0:
-                        for comm_tag in group_tags:
-                            comm_data = df_not_match[df_not_match["tag ของสายสื่อสาร"] == comm_tag]
-                            unique_areas = comm_data["พื้นที่รับผิดชอบของ กฟภ."].unique()
-                            
-                            area_details = []
-                            for area in unique_areas:
-                                area_data = comm_data[comm_data["พื้นที่รับผิดชอบของ กฟภ."] == area]
-                                total_poles = area_data["จำนวนเสา(ต้น)ทั้งหมด"].sum()
-                                poles_in_area = area_data["จำนวนเสา(ต้น)ในพื้นที่"].sum()
-                                all_tags = [tag for tag_list in area_data["tag เสาไฟฟ้าที่ผ่าน"] for tag in tag_list]
-                                unique_tags = list(dict.fromkeys(all_tags))
-                                area_details.append({
-                                    "area": area,
-                                    "poles_in_area": poles_in_area,
-                                    "unique_tags": unique_tags,
-                                    "tags_count": len(unique_tags)
-                                })
-                            
-                            all_unique_tags = [tag for detail in area_details for tag in detail["unique_tags"]]
-                            all_unique_tags = list(dict.fromkeys(all_unique_tags))
-                            
-                            with st.expander(f"📋 รายละเอียดสำหรับ {comm_tag}", expanded=False):
-                                # เรียกใช้ฟังก์ชันแสดงรายละเอียด tag สายสื่อสาร
-                                tag_assignment = display_communication_tag_details(comm_tag, comm_data, df_match, unique_areas, area_details, all_unique_tags)
-                                tag_assignments.update(tag_assignment)
+                    # กรณีพบ tag ในข้อมูลที่ตรงกัน ไม่ต้องแสดงรายละเอียด
+                    if group_name == "found_tag":
+                        if len(group_tags) > 0:
+                            st.info(f"มี {len(group_tags)} tag สายสื่อสารที่พบ tag ในข้อมูลที่ตรงกัน")
+                        else:
+                            st.info("ไม่มี tag สายสื่อสารในกลุ่มนี้")
+                    # กลุ่มอื่นๆ แสดงรายละเอียดเหมือนเดิม
                     else:
-                        st.info(f"ไม่มี tag สายสื่อสารในกลุ่มนี้")
+                        if len(group_tags) > 0:
+                            for comm_tag in group_tags:
+                                comm_data = df_not_match[df_not_match["tag ของสายสื่อสาร"] == comm_tag]
+                                unique_areas = comm_data["พื้นที่รับผิดชอบของ กฟภ."].unique()
+                                
+                                area_details = []
+                                for area in unique_areas:
+                                    area_data = comm_data[comm_data["พื้นที่รับผิดชอบของ กฟภ."] == area]
+                                    total_poles = area_data["จำนวนเสา(ต้น)ทั้งหมด"].sum()
+                                    poles_in_area = area_data["จำนวนเสา(ต้น)ในพื้นที่"].sum()
+                                    all_tags = [tag for tag_list in area_data["tag เสาไฟฟ้าที่ผ่าน"] for tag in tag_list]
+                                    unique_tags = list(dict.fromkeys(all_tags))
+                                    area_details.append({
+                                        "area": area,
+                                        "poles_in_area": poles_in_area,
+                                        "unique_tags": unique_tags,
+                                        "tags_count": len(unique_tags)
+                                    })
+                                
+                                all_unique_tags = [tag for detail in area_details for tag in detail["unique_tags"]]
+                                all_unique_tags = list(dict.fromkeys(all_unique_tags))
+                                
+                                with st.expander(f"📋 รายละเอียดสำหรับ {comm_tag}", expanded=False):
+                                    # เรียกใช้ฟังก์ชันแสดงรายละเอียด tag สายสื่อสาร
+                                    tag_assignment = display_communication_tag_details(comm_tag, comm_data, df_match, unique_areas, area_details, all_unique_tags)
+                                    tag_assignments.update(tag_assignment)
+                        else:
+                            st.info(f"ไม่มี tag สายสื่อสารในกลุ่มนี้")
 
         if st.button("🚀 เริ่มประมวลผลใหม่", use_container_width=True):
             with st.spinner("กำลังประมวลผล..."):
