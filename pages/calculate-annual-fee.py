@@ -203,8 +203,9 @@ if uploaded_file:
                 )
                 
                 proceed_with_assignment = True  # ตัวแปรควบคุมการประมวลผลต่อ
+                is_custom_input = tag_selection_method == "ระบุเอง"  # ตัวแปรตรวจสอบว่าเป็นการระบุเองหรือไม่
                 
-                if tag_selection_method == "ระบุเอง":
+                if is_custom_input:
                     # ให้ผู้ใช้ใส่ tag เอง
                     custom_tags_input = st.text_area(
                         f"ระบุ tag ที่ต้องการจัดสรรให้ {area} (คั่นด้วยเครื่องหมายคอมม่า ,)",
@@ -259,14 +260,15 @@ if uploaded_file:
                         disabled=True
                     )
                     
-                    # เพิ่มปุ่มยืนยันการจัดสรร
-                    if st.button(f"ยืนยันการจัดสรร tag สำหรับ {area}", key=f"confirm_{comm_tag}_{area}"):
-                        st.success(f"จัดสรร tag สำหรับ {area} เรียบร้อยแล้ว")
-                        # เก็บผลการจัดสรร
-                        tag_assignments[comm_tag] = {area: selected_tags}
-                    else:
-                        # ยังไม่ยืนยัน ใส่ค่าว่างไว้ก่อน
-                        tag_assignments[comm_tag] = {area: []}
+                    # เพิ่มปุ่มยืนยันการจัดสรรเฉพาะเมื่อเลือก "ระบุเอง" เท่านั้น
+                    if is_custom_input:
+                        if st.button(f"ยืนยันการจัดสรร tag สำหรับ {area}", key=f"confirm_{comm_tag}_{area}"):
+                            st.success(f"จัดสรร tag สำหรับ {area} เรียบร้อยแล้ว")
+                            # เก็บผลการจัดสรร
+                            tag_assignments[comm_tag] = {area: selected_tags}
+                        else:
+                            # ยังไม่ยืนยัน ใส่ค่าว่างไว้ก่อน
+                            tag_assignments[comm_tag] = {area: []}
                 else:
                     # กรณีข้อมูลไม่ถูกต้อง
                     tag_assignments[comm_tag] = {area: []}
@@ -391,71 +393,146 @@ if uploaded_file:
 
         def handle_manual_assignment(comm_tag, unique_areas, area_details, all_unique_tags):
             """
-            จัดการกรณีที่ต้องให้ผู้ใช้กำหนดลำดับเอง โดยใช้ session state
+            จัดการกรณีที่ต้องให้ผู้ใช้กำหนดลำดับเอง หรือระบุ tag เอง โดยใช้ session state
             และมีปุ่มยืนยันเพียงปุ่มเดียวต่อกลุ่ม
             """
             # สร้าง key สำหรับ session state
             ss_key = f"order_data_{comm_tag}"
             result_key = f"result_{comm_tag}"
+            custom_tags_key = f"custom_tags_{comm_tag}"
             
             # เริ่มต้นค่าใน session state ถ้ายังไม่มี
             if ss_key not in st.session_state:
                 st.session_state[ss_key] = {area: i + 1 for i, area in enumerate(unique_areas)}
-            
             if result_key not in st.session_state:
                 st.session_state[result_key] = None
+            if custom_tags_key not in st.session_state:
+                st.session_state[custom_tags_key] = {area: "" for area in unique_areas}
+
+            # เตรียมค่าเริ่มต้นสำหรับ return
+            tag_assignments = {comm_tag: {area: [] for area in unique_areas}}
+
+            st.write(f"กำหนดลำดับพื้นที่หรือระบุ tag เองสำหรับการจัดสรร tag เสาไฟฟ้าสำหรับ: {comm_tag}")
             
-            st.write(f"กำหนดลำดับพื้นที่สำหรับการจัดสรร tag เสาไฟฟ้าสำหรับ: {comm_tag}")
+            # เพิ่มตัวเลือกวิธีการจัดสรร
+            assignment_method = st.radio(
+                "เลือกวิธีการจัดสรร tag:",
+                ["กำหนดลำดับอัตโนมัติ", "ระบุ tag เอง"],
+                key=f"assignment_method_{comm_tag}"
+            )
             
-            # สร้าง UI สำหรับกำหนดลำดับด้วยฟอร์มเดียว
-            with st.form(key=f"order_form_{comm_tag}"):
-                # แสดง input สำหรับแต่ละพื้นที่ในคอลัมน์
-                cols = st.columns(len(unique_areas))
-                order_values = {}
-                
-                for i, area in enumerate(unique_areas):
-                    with cols[i]:
-                        # เก็บค่าจาก number_input
-                        order_values[area] = st.number_input(
-                            f"{area}",
-                            min_value=1,
-                            max_value=len(unique_areas),
-                            value=st.session_state[ss_key][area],
-                            key=f"input_{comm_tag}_{area}"
-                        )
-                
-                # ปุ่มยืนยันเพียงปุ่มเดียว
-                submit_button = st.form_submit_button(label="ยืนยันการจัดลำดับ")
-                
-                # ประมวลผลเมื่อกดปุ่มยืนยันเท่านั้น
-                if submit_button:
-                    # อัปเดต session state ด้วยค่าที่ผู้ใช้ป้อน
-                    st.session_state[ss_key] = order_values
+            if assignment_method == "กำหนดลำดับอัตโนมัติ":
+                # ฟอร์มสำหรับกำหนดลำดับ
+                with st.form(key=f"order_form_{comm_tag}"):
+                    cols = st.columns(len(unique_areas))
+                    order_values = {}
                     
-                    # จัดเรียงพื้นที่ตามลำดับที่ผู้ใช้กำหนด
-                    sorted_areas = sorted(unique_areas, key=lambda x: st.session_state[ss_key][x])
+                    for i, area in enumerate(unique_areas):
+                        with cols[i]:
+                            order_values[area] = st.number_input(
+                                f"{area}",
+                                min_value=1,
+                                max_value=len(unique_areas),
+                                value=st.session_state[ss_key][area],
+                                key=f"input_{comm_tag}_{area}"
+                            )
                     
-                    # การจัดสรร tag ตามลำดับที่กำหนด
-                    tag_assignments = {comm_tag: {area: [] for area in unique_areas}}
-                    remaining_tags = all_unique_tags.copy()
+                    submit_button = st.form_submit_button(label="ยืนยันการจัดลำดับ")
                     
-                    for area in sorted_areas:
+                    if submit_button:
+                        st.session_state[ss_key] = order_values
+                        sorted_areas = sorted(unique_areas, key=lambda x: st.session_state[ss_key][x])
+                        tag_assignments = {comm_tag: {area: [] for area in unique_areas}}
+                        remaining_tags = all_unique_tags.copy()
+                        
+                        for area in sorted_areas:
+                            area_index = list(unique_areas).index(area)
+                            detail = area_details[area_index]
+                            poles_needed = detail["poles_in_area"]
+                            if poles_needed <= len(remaining_tags):
+                                assigned_tags = remaining_tags[:int(poles_needed)]
+                                tag_assignments[comm_tag][area] = assigned_tags
+                                remaining_tags = [tag for tag in remaining_tags if tag not in assigned_tags]
+                            else:
+                                tag_assignments[comm_tag][area] = remaining_tags
+                                remaining_tags = []
+                        
+                        st.session_state[result_key] = {
+                            "sorted_areas": sorted_areas,
+                            "tag_assignments": tag_assignments
+                        }
+            
+            else:  # ระบุ tag เอง
+                # ฟอร์มสำหรับระบุ tag เอง
+                with st.form(key=f"custom_tags_form_{comm_tag}"):
+                    custom_tags = {}
+                    for area in unique_areas:
                         area_index = list(unique_areas).index(area)
                         detail = area_details[area_index]
                         poles_needed = detail["poles_in_area"]
-                        if poles_needed <= len(remaining_tags):
-                            assigned_tags = remaining_tags[:int(poles_needed)]
-                            tag_assignments[comm_tag][area] = assigned_tags
-                            remaining_tags = [tag for tag in remaining_tags if tag not in assigned_tags]
-                        else:
-                            tag_assignments[comm_tag][area] = remaining_tags
-                            remaining_tags = []
+                        st.write(f"{area}: จำนวนเสาที่ต้องการ {poles_needed} ต้น")
+                        custom_tags[area] = st.text_area(
+                            f"ระบุ tag สำหรับ {area} (คั่นด้วยเครื่องหมายคอมม่า , จำนวนต้องตรงกับ {poles_needed} tag)",
+                            value=st.session_state[custom_tags_key][area],
+                            height=100,
+                            key=f"custom_tags_input_{comm_tag}_{area}"
+                        )
                     
-                    # เก็บผลลัพธ์ใน session state
-                    st.session_state[result_key] = {
-                        "sorted_areas": sorted_areas,
-                        "tag_assignments": tag_assignments
-                    }
+                    submit_custom_button = st.form_submit_button(label="ยืนยันการระบุ tag")
+                    
+                    if submit_custom_button:
+                        temp_tag_assignments = {comm_tag: {area: [] for area in unique_areas}}
+                        valid = True
+                        
+                        # เก็บ tag ทั้งหมดที่ถูกเลือกไปแล้วเพื่อตรวจสอบความซ้ำซ้อน
+                        used_tags = []
+                        
+                        for area in unique_areas:
+                            area_index = list(unique_areas).index(area)
+                            detail = area_details[area_index]
+                            poles_needed = detail["poles_in_area"]
+                            
+                            if custom_tags[area].strip():
+                                selected_tags = [tag.strip() for tag in custom_tags[area].split(",") if tag.strip()]
+                                
+                                # ตรวจสอบเงื่อนไข
+                                if len(selected_tags) != poles_needed:
+                                    st.error(f"จำนวน tag ที่ระบุสำหรับ {area} ({len(selected_tags)}) ไม่ตรงกับจำนวนเสา ({poles_needed})")
+                                    valid = False
+                                
+                                invalid_tags = [tag for tag in selected_tags if tag not in all_unique_tags]
+                                if invalid_tags:
+                                    st.error(f"พบ tag ที่ไม่อยู่ในรายการสำหรับ {area}: {', '.join(invalid_tags)}")
+                                    valid = False
+                                
+                                # ตรวจสอบความซ้ำซ้อนของ tag ภายในพื้นที่เดียวกัน
+                                duplicates_in_area = set([tag for tag in selected_tags if selected_tags.count(tag) > 1])
+                                if duplicates_in_area:
+                                    st.error(f"พบ tag ซ้ำกันภายในพื้นที่ {area}: {', '.join(duplicates_in_area)}")
+                                    valid = False
+                                
+                                # ตรวจสอบความซ้ำซ้อนกับ tag ที่ถูกใช้ในพื้นที่อื่นแล้ว
+                                duplicates_across_areas = set([tag for tag in selected_tags if tag in used_tags])
+                                if duplicates_across_areas:
+                                    st.error(f"พบ tag ที่ถูกใช้ในพื้นที่อื่นแล้วสำหรับ {area}: {', '.join(duplicates_across_areas)}")
+                                    valid = False
+                                
+                                if valid:
+                                    # เพิ่ม tag ที่เลือกเข้าไปในรายการที่ใช้แล้ว
+                                    used_tags.extend(selected_tags)
+                                    temp_tag_assignments[comm_tag][area] = selected_tags
+                                    st.session_state[custom_tags_key][area] = custom_tags[area]
+                            else:
+                                st.error(f"กรุณาระบุ tag สำหรับ {area} ให้ครบ {poles_needed} tag")
+                                valid = False
+                        
+                        if valid:
+                            tag_assignments = temp_tag_assignments
+                            st.session_state[result_key] = {
+                                "sorted_areas": unique_areas,
+                                "tag_assignments": tag_assignments
+                            }
+                            st.success("บันทึกการระบุ tag เรียบร้อยแล้ว")
             
             # แสดงผลการจัดสรรเมื่อมีข้อมูลใน session state
             if st.session_state[result_key]:
@@ -480,12 +557,10 @@ if uploaded_file:
                             key=f"tags_{comm_tag}_{area}",
                             disabled=True
                         )
-                
-                return tag_assignments
             
-            # คืนค่าเริ่มต้นถ้ายังไม่มีการยืนยัน
-            return {comm_tag: {area: [] for area in unique_areas}}
-        
+            # ส่งคืนค่า tag_assignments ในทุกกรณี
+            return tag_assignments
+                
         def display_tag_assignment_results(sorted_areas, tag_assignments, comm_tag):
             """
             แสดงผลการจัดสรร tag
@@ -571,9 +646,9 @@ if uploaded_file:
             
             # แสดงตัวเลือกดูข้อมูลตามกลุ่ม
             tabs = st.tabs([
-                f"✅ พบ tag ในข้อมูลที่ตรงกัน ({len(tag_groups['found_tag'])} tags)",
-                f"⚠️ ไม่พบ tag ในข้อมูลที่ตรงกัน ({len(tag_groups['not_found_tag'])} tags)",
-                f"⚠️ มีมากกว่า 2 การไฟฟ้า ({len(tag_groups['more_than_two_areas'])} tags)",
+                f"✅ ระบุ tag เสากับการไฟฟ้าได้ ({len(tag_groups['found_tag'])} tags)",
+                f"⚠️ ระบุ tag เสากับการไฟฟ้าไม่ได้  ({len(tag_groups['not_found_tag'])} tags)",
+                f"⚠️ tag เสาที่พาดข้ามมากกว่า 2 การไฟฟ้า ({len(tag_groups['more_than_two_areas'])} tags)",
                 f"⚠️ tag สายที่ข้ามไป กฟภ.อื่น ({len(tag_groups['single_area'])} tags)"
             ])
             
