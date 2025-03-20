@@ -442,41 +442,57 @@ with st.container():
     with col2:
         st.markdown("##### การเลื่อนตำแหน่ง")
         
-        # เพิ่มคำอธิบายสั้นๆ เพื่อให้ผู้ใช้เข้าใจ scale
+        # เพิ่มคำอธิบายที่เข้าใจง่าย
         st.markdown("""
         <div class="status-info info">
-            ค่าระยะเลื่อน (1-10) จะถูกแปลงเป็นค่าทศนิยมที่เหมาะสมต่อการแสดงผลในแผนที่
+            <p><strong>วิธีการทำงาน:</strong> เมื่อพบเส้นที่ซ้อนทับกัน ระบบจะเลื่อนตำแหน่งให้มองเห็นแยกจากกันได้</p>
         </div>
         """, unsafe_allow_html=True)
         
-        col2_1, col2_2 = st.columns(2)
-        with col2_1:
-            # ปรับให้เป็นสไลเดอร์ช่วง 0-10
-            offset_lat_scale = st.slider("ระยะเลื่อน Latitude", 
-                                        min_value=0, 
-                                        max_value=10, 
-                                        value=2,
-                                        help="ปรับค่าตั้งแต่ 0-10 (0=ไม่เลื่อน, 10=เลื่อนมากที่สุด)")
-            # แปลงค่า 0-10 เป็นค่า offset ที่เหมาะสม (0.00001 - 0.0001)
-            offset_lat = 0.00001 * offset_lat_scale
-            
-            # แสดงค่าที่แปลงเรียบร้อยให้ผู้ใช้เห็น
-            st.caption(f"ค่าจริงที่ใช้: {offset_lat:.7f}")
+        # เพิ่มตัวเลือกแบบง่ายเพียง 3 ระดับตามที่ต้องการ
+        offset_preset = st.radio(
+            "เลือกระยะการเลื่อน:",
+            ["น้อย", "ปานกลาง", "มาก"]
+        )
         
-        with col2_2:
-            # ปรับให้เป็นสไลเดอร์ช่วง 0-10 สำหรับ Longitude
-            offset_lon_scale = st.slider("ระยะเลื่อน Longitude", 
-                                        min_value=0, 
-                                        max_value=10, 
-                                        value=2,
-                                        help="ปรับค่าตั้งแต่ 0-10 (0=ไม่เลื่อน, 10=เลื่อนมากที่สุด)")
-            # แปลงค่า 0-10 เป็นค่า offset ที่เหมาะสม (0.00001 - 0.0001)
-            offset_lon = 0.00001 * offset_lon_scale
-            
-            # แสดงค่าที่แปลงเรียบร้อยให้ผู้ใช้เห็น
-            st.caption(f"ค่าจริงที่ใช้: {offset_lon:.7f}")
-
-    st.markdown("<hr>", unsafe_allow_html=True)
+        # แปลงค่าที่เลือกเป็นค่าที่ใช้จริง
+        if offset_preset == "น้อย":
+            offset_lat = 0.00002
+            offset_lon = 0.00002
+        elif offset_preset == "ปานกลาง":
+            offset_lat = 0.00005
+            offset_lon = 0.00005
+        elif offset_preset == "มาก":
+            offset_lat = 0.0001
+            offset_lon = 0.0001
+        
+        # แสดงค่าที่ใช้จริง
+        st.markdown(f"""
+        <div class="status-info info" style="margin-top: 10px;">
+            <p><strong>ค่าที่ใช้:</strong> {offset_lat:.7f}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # เพิ่มตัวอย่างภาพประกอบอย่างง่าย
+        st.markdown(f"""
+        <div style="text-align: center; margin-top: 15px;">
+            <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                <div style="text-align: center;">
+                    <div style="height: 60px; position: relative; width: 100px; margin: 0 auto;">
+                        <div style="position: absolute; height: 4px; width: 80px; background-color: blue; top: 30px; left: 10px;"></div>
+                    </div>
+                    <p style="font-size: 12px;">ก่อน</p>
+                </div>
+                <div style="text-align: center;">
+                    <div style="height: 60px; position: relative; width: 100px; margin: 0 auto;">
+                        <div style="position: absolute; height: 4px; width: 80px; background-color: blue; top: 20px; left: 10px;"></div>
+                        <div style="position: absolute; height: 4px; width: 80px; background-color: red; top: {30 + (offset_lat/0.00001) * 2}px; left: 10px;"></div>
+                    </div>
+                    <p style="font-size: 12px;">หลัง</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # ส่วนของการอัปโหลด
 st.markdown("""
