@@ -202,8 +202,9 @@ if uploaded_file:
                     key=f"tag_selection_method_{comm_tag}"
                 )
                 
-                proceed_with_assignment = True  # ตัวแปรควบคุมการประมวลผลต่อ
                 is_custom_input = tag_selection_method == "ระบุเอง"  # ตัวแปรตรวจสอบว่าเป็นการระบุเองหรือไม่
+                selected_tags = []  # กำหนดค่าเริ่มต้น
+                can_proceed = True  # ตัวแปรควบคุมว่าสามารถยืนยันได้หรือไม่
                 
                 if is_custom_input:
                     # ให้ผู้ใช้ใส่ tag เอง
@@ -222,16 +223,53 @@ if uploaded_file:
                         invalid_tags = [tag for tag in selected_tags if tag not in all_unique_tags]
                         if invalid_tags:
                             st.error(f"พบ tag ที่ไม่อยู่ในรายการ: {', '.join(invalid_tags)}")
-                            proceed_with_assignment = False
+                            can_proceed = False
                         
-                        # ตรวจสอบว่าจำนวน tag ต้องเท่ากับจำนวนเสาพอดี
+                        # ตรวจสอบ tag ซ้ำ
+                        duplicate_tags = []
+                        seen_tags = set()
+                        for tag in selected_tags:
+                            if tag in seen_tags:
+                                duplicate_tags.append(tag)
+                            else:
+                                seen_tags.add(tag)
+                        
+                        if duplicate_tags:
+                            st.error(f"พบ tag ซ้ำกัน: {', '.join(duplicate_tags)}")
+                            can_proceed = False
+                        
+                        # แจ้งเตือนจำนวน tag ที่ไม่ตรงกับจำนวนเสา แต่ยังให้ดำเนินการต่อได้
                         if len(selected_tags) != poles_in_area:
-                            st.error(f"จำนวน tag ต้องเท่ากับจำนวนเสาในพื้นที่ ({poles_in_area} ต้น) เท่านั้น แต่ที่ระบุมามีจำนวน {len(selected_tags)} tag")
-                            proceed_with_assignment = False
+                            if len(selected_tags) < poles_in_area:
+                                st.warning(f"จำนวน tag ({len(selected_tags)} tag) น้อยกว่าจำนวนเสาในพื้นที่ ({poles_in_area} ต้น)")
+                            else:
+                                st.warning(f"จำนวน tag ({len(selected_tags)} tag) มากกว่าจำนวนเสาในพื้นที่ ({poles_in_area} ต้น)")
+                        
+                        # แสดงตัวอย่าง tag ที่เลือก (แสดงเสมอเมื่อมีการใส่ข้อมูล)
+                        st.write(f"จัดสรร {len(selected_tags)} tag จาก {len(all_unique_tags)} tag ให้กับ {area}")
+                        st.text_area(
+                            f"tag ที่จัดสรรให้ {area}",
+                            ", ".join(selected_tags),
+                            height=100,
+                            key=f"selected_tags_{comm_tag}_{area}",
+                            disabled=True
+                        )
                     else:
-                        selected_tags = []
-                        st.error("กรุณาระบุ tag ให้ครบตามจำนวนเสา")
-                        proceed_with_assignment = False
+                        st.warning("กรุณาระบุ tag อย่างน้อย 1 รายการ")
+                        
+                    # แสดงปุ่มยืนยันทันทีเมื่อเลือก "ระบุเอง" โดยไม่สนใจเงื่อนไขอื่น
+                    if st.button(f"ยืนยันการจัดสรร tag สำหรับ {area}", key=f"confirm_{comm_tag}_{area}"):
+                        if not selected_tags:
+                            st.error("กรุณาระบุ tag อย่างน้อย 1 รายการก่อนยืนยัน")
+                        elif not can_proceed:
+                            st.error("กรุณาแก้ไขข้อผิดพลาดก่อนยืนยัน")
+                        else:
+                            st.success(f"จัดสรร tag สำหรับ {area} เรียบร้อยแล้ว")
+                            # เก็บผลการจัดสรร
+                            tag_assignments[comm_tag] = {area: selected_tags}
+                    else:
+                        # ยังไม่ยืนยัน ใส่ค่าว่างไว้ก่อน
+                        tag_assignments[comm_tag] = {area: []}
                         
                 else:
                     # จำนวน tag ที่จะเลือก
@@ -240,44 +278,33 @@ if uploaded_file:
                     # ตรวจสอบว่ามี tag เพียงพอหรือไม่
                     if num_tags_to_select < poles_in_area:
                         st.error(f"มี tag ไม่เพียงพอสำหรับจำนวนเสาในพื้นที่ ({poles_in_area} ต้น) มี tag เพียง {len(all_unique_tags)} tag")
-                        proceed_with_assignment = False
+                        can_proceed = False
                     
                     # เลือก tag ตามลำดับที่ผู้ใช้เลือก
                     if tag_selection_method == "ต้นทาง":
                         selected_tags = all_unique_tags[:num_tags_to_select]
                     else:  # จากท้ายรายการ
                         selected_tags = all_unique_tags[-num_tags_to_select:]
-                
-                # แสดงผลลัพธ์และประมวลผลต่อเฉพาะเมื่อเงื่อนไขถูกต้อง
-                if proceed_with_assignment and selected_tags:
-                    # แสดงตัวอย่าง tag ที่เลือก
-                    st.write(f"จัดสรร {len(selected_tags)} tag จาก {len(all_unique_tags)} tag ให้กับ {area}")
-                    st.text_area(
-                        f"tag ที่จัดสรรให้ {area}",
-                        ", ".join(selected_tags),
-                        height=100,
-                        key=f"selected_tags_{comm_tag}_{area}",
-                        disabled=True
-                    )
                     
-                    # เพิ่มปุ่มยืนยันการจัดสรรเฉพาะเมื่อเลือก "ระบุเอง" เท่านั้น
-                    if is_custom_input:
-                        if st.button(f"ยืนยันการจัดสรร tag สำหรับ {area}", key=f"confirm_{comm_tag}_{area}"):
-                            st.success(f"จัดสรร tag สำหรับ {area} เรียบร้อยแล้ว")
-                            # เก็บผลการจัดสรร
-                            tag_assignments[comm_tag] = {area: selected_tags}
-                        else:
-                            # ยังไม่ยืนยัน ใส่ค่าว่างไว้ก่อน
-                            tag_assignments[comm_tag] = {area: []}
-                else:
-                    # กรณีข้อมูลไม่ถูกต้อง
-                    tag_assignments[comm_tag] = {area: []}
+                    # แสดงตัวอย่าง tag ที่เลือก
+                    if selected_tags:
+                        st.write(f"จัดสรร {len(selected_tags)} tag จาก {len(all_unique_tags)} tag ให้กับ {area}")
+                        st.text_area(
+                            f"tag ที่จัดสรรให้ {area}",
+                            ", ".join(selected_tags),
+                            height=100,
+                            key=f"selected_tags_{comm_tag}_{area}",
+                            disabled=True
+                        )
+                    
+                    # สำหรับกรณีที่ไม่ใช่การระบุเอง ให้เก็บค่าเลย
+                    tag_assignments[comm_tag] = {area: selected_tags}
             else:
                 st.warning(f"มีเพียงเขตการไฟฟ้าเดียว ({area}) แต่ไม่มี tag เสาไฟฟ้าที่ผ่าน")
                 tag_assignments[comm_tag] = {area: []}
             
             return tag_assignments
-        
+                
         def handle_multiple_areas_case(comm_tag, unique_areas, area_details, all_unique_tags, df_match):
             """
             จัดการกรณีที่มีหลายพื้นที่
@@ -472,7 +499,7 @@ if uploaded_file:
                         poles_needed = detail["poles_in_area"]
                         st.write(f"{area}: จำนวนเสาที่ต้องการ {poles_needed} ต้น")
                         custom_tags[area] = st.text_area(
-                            f"ระบุ tag สำหรับ {area} (คั่นด้วยเครื่องหมายคอมม่า , จำนวนต้องตรงกับ {poles_needed} tag)",
+                            f"ระบุ tag สำหรับ {area} (คั่นด้วยเครื่องหมายคอมม่า , แนะนำให้ใส่ {poles_needed} tag)",
                             value=st.session_state[custom_tags_key][area],
                             height=100,
                             key=f"custom_tags_input_{comm_tag}_{area}"
@@ -483,6 +510,7 @@ if uploaded_file:
                     if submit_custom_button:
                         temp_tag_assignments = {comm_tag: {area: [] for area in unique_areas}}
                         valid = True
+                        has_warnings = False
                         
                         # เก็บ tag ทั้งหมดที่ถูกเลือกไปแล้วเพื่อตรวจสอบความซ้ำซ้อน
                         used_tags = []
@@ -495,23 +523,24 @@ if uploaded_file:
                             if custom_tags[area].strip():
                                 selected_tags = [tag.strip() for tag in custom_tags[area].split(",") if tag.strip()]
                                 
-                                # ตรวจสอบเงื่อนไข
+                                # ตรวจสอบและแจ้งเตือนเมื่อจำนวน tag ไม่ตรงกับที่ต้องการ
                                 if len(selected_tags) != poles_needed:
-                                    st.error(f"จำนวน tag ที่ระบุสำหรับ {area} ({len(selected_tags)}) ไม่ตรงกับจำนวนเสา ({poles_needed})")
-                                    valid = False
+                                    st.warning(f"จำนวน tag ที่ระบุสำหรับ {area} ({len(selected_tags)}) ไม่ตรงกับจำนวนเสา ({poles_needed}) ที่แนะนำ")
+                                    has_warnings = True
                                 
+                                # แจ้งเตือนเมื่อมี tag ที่ไม่อยู่ในรายการ
                                 invalid_tags = [tag for tag in selected_tags if tag not in all_unique_tags]
                                 if invalid_tags:
-                                    st.error(f"พบ tag ที่ไม่อยู่ในรายการสำหรับ {area}: {', '.join(invalid_tags)}")
-                                    valid = False
+                                    st.warning(f"พบ tag ที่ไม่อยู่ในรายการสำหรับ {area}: {', '.join(invalid_tags)}")
+                                    has_warnings = True
                                 
-                                # ตรวจสอบความซ้ำซ้อนของ tag ภายในพื้นที่เดียวกัน
+                                # ตรวจสอบความซ้ำกันภายในพื้นที่เดียวกัน (ไม่อนุญาตให้มี tag ซ้ำกัน)
                                 duplicates_in_area = set([tag for tag in selected_tags if selected_tags.count(tag) > 1])
                                 if duplicates_in_area:
                                     st.error(f"พบ tag ซ้ำกันภายในพื้นที่ {area}: {', '.join(duplicates_in_area)}")
                                     valid = False
                                 
-                                # ตรวจสอบความซ้ำซ้อนกับ tag ที่ถูกใช้ในพื้นที่อื่นแล้ว
+                                # ตรวจสอบความซ้ำกันระหว่างพื้นที่ (ไม่อนุญาตให้มี tag ซ้ำกัน)
                                 duplicates_across_areas = set([tag for tag in selected_tags if tag in used_tags])
                                 if duplicates_across_areas:
                                     st.error(f"พบ tag ที่ถูกใช้ในพื้นที่อื่นแล้วสำหรับ {area}: {', '.join(duplicates_across_areas)}")
@@ -522,9 +551,6 @@ if uploaded_file:
                                     used_tags.extend(selected_tags)
                                     temp_tag_assignments[comm_tag][area] = selected_tags
                                     st.session_state[custom_tags_key][area] = custom_tags[area]
-                            else:
-                                st.error(f"กรุณาระบุ tag สำหรับ {area} ให้ครบ {poles_needed} tag")
-                                valid = False
                         
                         if valid:
                             tag_assignments = temp_tag_assignments
@@ -532,8 +558,14 @@ if uploaded_file:
                                 "sorted_areas": unique_areas,
                                 "tag_assignments": tag_assignments
                             }
-                            st.success("บันทึกการระบุ tag เรียบร้อยแล้ว")
-            
+                            
+                            if has_warnings:
+                                st.info("มีคำเตือนบางประการ แต่ได้บันทึกการระบุ tag เรียบร้อยแล้ว")
+                            else:
+                                st.success("บันทึกการระบุ tag เรียบร้อยแล้ว")
+                        else:
+                            st.error("กรุณาแก้ไขข้อผิดพลาดก่อนที่จะบันทึกข้อมูล")
+                
             # แสดงผลการจัดสรรเมื่อมีข้อมูลใน session state
             if st.session_state[result_key]:
                 sorted_areas = st.session_state[result_key]["sorted_areas"]
@@ -543,7 +575,9 @@ if uploaded_file:
                 for i, area in enumerate(sorted_areas, 1):
                     area_index = list(unique_areas).index(area)
                     detail = area_details[area_index]
-                    st.write(f"{i}. {area}: {detail['poles_in_area']} ต้น")
+                    poles_needed = detail["poles_in_area"]
+                    assigned = tag_assignments[comm_tag][area]
+                    st.write(f"{i}. {area}: ต้องการ {poles_needed} ต้น, ระบุไว้ {len(assigned)} tag")
                 
                 st.write("**การจัดสรร tag เสาไฟฟ้า:**")
                 for area in sorted_areas:
