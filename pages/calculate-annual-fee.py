@@ -733,19 +733,22 @@ if uploaded_file:
         if st.button("🚀 เริ่มประมวลผลใหม่", use_container_width=True):
             with st.spinner("กำลังประมวลผล..."):
                 # ...existing code...           
-                def process_tags_by_assignment(df_not_match, tag_assignments):
+                def process_tags_by_assignment(df_not_match, tag_assignments, tag_groups):
                     result_rows = []
-                    for comm_tag in tag_assignments.keys():
-                        comm_group = df_not_match[df_not_match["tag ของสายสื่อสาร"] == comm_tag]
-                        for area, assigned_tags in tag_assignments[comm_tag].items():
-                            area_data = comm_group[comm_group["พื้นที่รับผิดชอบของ กฟภ."] == area]
-                            if not area_data.empty:
-                                template_row = area_data.iloc[0].copy()
-                                for tag in assigned_tags:
+                    for comm_tag in df_not_match["tag ของสายสื่อสาร"].unique():
+                        if comm_tag not in tag_assignments:
+                            comm_group = df_not_match[df_not_match["tag ของสายสื่อสาร"] == comm_tag]
+                            for area, area_group in comm_group.groupby("พื้นที่รับผิดชอบของ กฟภ."):
+                                template_row = area_group.iloc[0].copy()
+                                all_tags = [tag for tag_list in area_group["tag เสาไฟฟ้าที่ผ่าน"] for tag in tag_list]
+                                unique_tags = list(dict.fromkeys(all_tags))
+                                for tag in unique_tags[:int(template_row["จำนวนเสา(ต้น)ในพื้นที่"])]:
                                     new_row = template_row.copy()
                                     new_row["tag เสาไฟฟ้าที่ผ่าน"] = tag
+                                    # แก้ไขตรงนี้ให้มีการตรวจสอบเงื่อนไขเหมือนกับส่วนแรก
                                     new_row["การเรียงค่า"] = "ระบบเรียงค่าให้" if comm_tag in tag_groups["found_tag"] else "ผู้ใช้เรียงค่าเอง"
                                     result_rows.append(new_row)
+                    # ส่วนของการประมวลผลส่วนที่เหลือ...
                     for comm_tag in df_not_match["tag ของสายสื่อสาร"].unique():
                         if comm_tag not in tag_assignments:
                             comm_group = df_not_match[df_not_match["tag ของสายสื่อสาร"] == comm_tag]
@@ -794,7 +797,7 @@ if uploaded_file:
 
                 # Process data
                 df_tags_match = df_match.explode("tag เสาไฟฟ้าที่ผ่าน").reset_index(drop=True)
-                df_tags_not_match = process_tags_by_assignment(df_not_match, tag_assignments)
+                df_tags_not_match = process_tags_by_assignment(df_not_match, tag_assignments, tag_groups)
                 summary_df = calculate_diameter_class(df_match, df_tags_not_match)
                 tag_area_summary = summarize_tag_areas(df_tags_not_match)
                 summarized_area_df = summarize_by_area(summary_df)
