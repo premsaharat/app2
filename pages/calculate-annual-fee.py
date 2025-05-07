@@ -766,7 +766,7 @@ if uploaded_file:
                         "เส้นผ่านศูนย์กลาง(มม.)": "sum"
                     }).reset_index()
                     grouped = grouped.rename(columns={"เส้นผ่านศูนย์กลาง(มม.)": "เส้นผ่านศูนย์กลางรวม"})
-                    grouped["ประเภท"] = grouped["เส้นผ่านศูนย์กลางรวม"].apply(lambda x: "น้อยกว่า 63" if x < 63 else "มากกว่า 63")
+                    grouped["ประเภท"] = grouped["เส้นผ่านศูนย์กลางรวม"].apply(lambda x: "น้อยกว่า 63" if x <= 63 else "มากกว่า 63")
                     return grouped
 
                 def summarize_by_area(summary_df):
