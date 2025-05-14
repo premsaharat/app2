@@ -1,4 +1,4 @@
-import os
+import os, copy
 import streamlit as st
 import tempfile
 import zipfile
@@ -71,7 +71,7 @@ st.markdown("""
     }
     .download-btn {
         background-color: var(--success-color);
-        color: var(--text-primary);
+        color: var (--text-primary);
         font-weight: bold;
     }
     .footer {
@@ -122,18 +122,85 @@ def clip_and_combine(input_kml, boundary_polygon, output_kml):
         processed_placemarks = 0
 
         for placemark in root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
-            coordinates = placemark.find(".//{http://www.opengis.net/kml/2.2}coordinates")
-            if coordinates is not None:
-                coord_text = coordinates.text.strip()
-                coord_list = coord_text.split()
-                points = [Point(map(float, coord.split(",")[:2])) for coord in coord_list]
-                
-                if not any(point.within(boundary_polygon) for point in points):
+            # 0) ตรวจสอบว่ามี Point ไหม ถ้ามีให้เช็คว่าอยู่ในขอบเขตหรือไม่
+            point_elem = placemark.find(
+                ".//{http://www.opengis.net/kml/2.2}Point"
+            )
+            if point_elem is not None:
+                coords_elem = point_elem.find(
+                    ".//{http://www.opengis.net/kml/2.2}coordinates"
+                )
+                if coords_elem is not None:
+                    lon, lat = map(float, coords_elem.text.strip().split(',')[:2])
+                    from shapely.geometry import Point as ShapelyPoint
+                    pt = ShapelyPoint(lon, lat)
+                    # ถ้าอยู่นอกขอบเขต ให้ลบ
+                    if not pt.within(boundary_polygon):
+                        placemarks_to_remove.append(placemark)
+                # อัพเดต progress แล้วข้ามไปเลย
+                processed_placemarks += 1
+                st.session_state.progress = processed_placemarks / total_placemarks
+                continue
+
+            # 1) หาองค์ประกอบ Geometry (LineString หรือ Polygon)
+            line_elem = placemark.find(".//{http://www.opengis.net/kml/2.2}LineString")
+            poly_elem = placemark.find(".//{http://www.opengis.net/kml/2.2}Polygon")
+            coords_elem = None
+            geom = None
+
+            if line_elem is not None:
+                coords_elem = line_elem.find(".//{http://www.opengis.net/kml/2.2}coordinates")
+                if coords_elem is not None:
+                    pts = [
+                        tuple(map(float, c.split(',')[:2]))
+                        for c in coords_elem.text.strip().split()
+                    ]
+                    from shapely.geometry import LineString
+                    geom = LineString(pts)
+
+            elif poly_elem is not None:
+                coords_elem = poly_elem.find(".//{http://www.opengis.net/kml/2.2}outerBoundaryIs//{http://www.opengis.net/kml/2.2}coordinates")
+                if coords_elem is not None:
+                    pts = [
+                        tuple(map(float, c.split(',')[:2]))
+                        for c in coords_elem.text.strip().split()
+                    ]
+                    from shapely.geometry import Polygon
+                    geom = Polygon(pts)
+
+            # 2) ถ้ามี geometry ให้ตัดด้วย boundary_polygon
+            if geom:
+                clipped = geom.intersection(boundary_polygon)
+                if clipped.is_empty:
                     placemarks_to_remove.append(placemark)
-            
+                else:
+                    # เตรียม list เก็บทุกส่วนที่มีพิกัด
+                    new_pts = []
+                    from shapely.geometry import LineString, Polygon, MultiLineString, MultiPolygon, GeometryCollection
+
+                    def collect_coords(g):
+                        if isinstance(g, Polygon):
+                            return list(g.exterior.coords)
+                        elif isinstance(g, LineString):
+                            return list(g.coords)
+                        return []
+
+                    # ถ้าเป็น single geometry
+                    if isinstance(clipped, (Polygon, LineString)):
+                        new_pts = collect_coords(clipped)
+                    # ถ้าเป็น multi-part หรือ collection
+                    elif isinstance(clipped, (MultiPolygon, MultiLineString, GeometryCollection)):
+                        for part in clipped.geoms:
+                            new_pts += collect_coords(part)
+
+                    # อัปเดต coordinates element
+                    if new_pts:
+                        coords_elem.text = " ".join(f"{x},{y}" for x, y in new_pts)
+
             processed_placemarks += 1
             st.session_state.progress = processed_placemarks / total_placemarks
 
+        # เอา placemark ที่ไม่ผ่านเงื่อนไขออก
         for placemark in placemarks_to_remove:
             placemark.getparent().remove(placemark)
 
@@ -194,7 +261,7 @@ def process_areas_with_red(input_kml, boundary_kml):
     return output_files
 
 # ฟังก์ชันรวมไฟล์ KML
-def combine_kml_files(output_files, input_file_name):
+def combine_kml_files(output_files, input_file_name, boundary_kml):
     combined_output_kml = tempfile.NamedTemporaryFile(delete=False, suffix='.kml')
     kml_elem = etree.Element("kml", xmlns="http://www.opengis.net/kml/2.2")
     document_elem = etree.SubElement(kml_elem, "Document")
@@ -213,6 +280,39 @@ def combine_kml_files(output_files, input_file_name):
     etree.SubElement(poly_style, "color").text = "7f0000ff"  # Semi-transparent red
     etree.SubElement(poly_style, "outline").text = "1"
 
+    # ===== สไตล์สำหรับขอบเขตพื้นที่ =====
+    boundary_style = etree.SubElement(document_elem, "Style", id="boundaryPlacemark")
+    # เส้นขอบ
+    ls_b = etree.SubElement(boundary_style, "LineStyle")
+    etree.SubElement(ls_b, "color").text = "ff00ff00"   # ทึบเขียว
+    etree.SubElement(ls_b, "width").text = "3"
+    # พื้นที่เติม
+    ps_b = etree.SubElement(boundary_style, "PolyStyle")
+    etree.SubElement(ps_b, "color").text   = "4000ff00"  # 25% โปร่งใสเขียว
+    etree.SubElement(ps_b, "fill").text    = "1"         # เปิดเติมสี
+    etree.SubElement(ps_b, "outline").text = "1"         # แสดงเส้นขอบด้วย
+
+    # ===== สไตล์สำหรับขอบเขตพื้นที่ =====
+    boundary_style = etree.SubElement(document_elem, "Style", id="boundaryPlacemark")
+    # เส้นขอบ
+    ls_b = etree.SubElement(boundary_style, "LineStyle")
+    etree.SubElement(ls_b, "color").text = "ff00ff00"   # เส้นขอบเขียวทึบ
+    etree.SubElement(ls_b, "width").text = "3"
+    # พื้นที่เติม
+    ps_b = etree.SubElement(boundary_style, "PolyStyle")
+    etree.SubElement(ps_b, "color").text   = "0000ff00"  # เติมสีเขียว แต่ alpha=00 => มองไม่เห็น
+    etree.SubElement(ps_b, "fill").text    = "1"         # เปิดเติม (แต่โปร่งใสหมด)
+    etree.SubElement(ps_b, "outline").text = "1"         # แสดงเส้นขอบ
+
+    # โหลด boundary KML มาเก็บตามชื่อ
+    boundary_tree = etree.parse(boundary_kml)
+    boundary_root = boundary_tree.getroot()
+    boundary_dict = {}
+    for b in boundary_root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
+        nm = b.find(".//{http://www.opengis.net/kml/2.2}name")
+        if nm is not None:
+            boundary_dict[nm.text] = b
+
     progress_bar = st.progress(0)
     status_text = st.empty()
     
@@ -224,6 +324,13 @@ def combine_kml_files(output_files, input_file_name):
             folder_elem = etree.SubElement(document_elem, "Folder")
             folder_name_elem = etree.SubElement(folder_elem, "name")
             folder_name_elem.text = area_name
+
+            # ----- เพิ่มขอบเขตเดิมก่อน placemark ที่ตัดแล้ว -----
+            if area_name in boundary_dict:
+                b_placemark = copy.deepcopy(boundary_dict[area_name])
+                style_url = etree.SubElement(b_placemark, "styleUrl")
+                style_url.text = "#boundaryPlacemark"
+                folder_elem.append(b_placemark)
 
             for placemark in root.findall(".//{http://www.opengis.net/kml/2.2}Placemark"):
                 # Add style reference to each placemark
@@ -314,7 +421,7 @@ def start_processing():
 
                 if output_files:
                     st.info("กำลังรวมไฟล์ KML...")
-                    combined_kml = combine_kml_files(output_files, st.session_state.input_file.name)
+                    combined_kml = combine_kml_files(output_files, st.session_state.input_file.name, boundary_path)
                     st.session_state.combined_kml = combined_kml
                     st.session_state.processed_files = [name for _, name in output_files]
                     
